@@ -25,6 +25,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0}
+body{overflow-x:clip}
 body{background:var(--page);color:var(--ink);font-family:Tajawal,"Segoe UI",Tahoma,Arial,sans-serif;font-size:15px;line-height:1.55}
 body.aza{--accent:var(--aza);--accent-soft:var(--aza-soft)}
 body.majlis{--accent:var(--majlis);--accent-soft:var(--majlis-soft)}
@@ -136,7 +137,20 @@ tr.grand:hover td{background:var(--accent)}
 
 /* modal */
 .ov{position:fixed;inset:0;background:rgba(20,20,18,.45);display:flex;align-items:flex-start;justify-content:center;z-index:50;padding:40px 12px;overflow:auto}
-.modal{background:var(--surface);border-radius:14px;width:min(560px,100%);box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal{background:var(--surface);border-radius:14px;width:min(560px,100%);min-width:0;max-width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal img{max-width:100%;height:auto}
+.modal-b{min-width:0;overflow-x:hidden}
+.ov{overflow-x:hidden}
+/* nothing may make a page wider than the phone: grid cells shrink (their tables scroll inside .tw), chart columns shrink */
+.grid>*,.kpis>*,.cards2>*{min-width:0}
+.col,.xl span{min-width:0}
+@media (max-width:640px){ .plot,.xl{gap:3px;padding:0} .xl span{font-size:9px;letter-spacing:-.4px} }
+/* form columns may shrink: a dropdown never makes a dialog wider than the phone screen (Android sizes <select> to its longest option) */
+.row2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+.fld{min-width:0}
+.fld .inp,.fld select.inp{min-width:0;max-width:100%}
+select.inp{text-overflow:ellipsis;overflow:hidden}
+@media (max-width:380px){ .row2{grid-template-columns:minmax(0,1fr)!important} }
 .modal.wide{width:min(900px,100%)}
 .modal-h{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
 .modal-h h2{flex:1}
@@ -152,6 +166,8 @@ tr.grand:hover td{background:var(--accent)}
 .note{background:var(--warn-soft);border:1px solid #efd9a6;color:#6d4a00;border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:14px}
 .muted-box{background:var(--surface-2);border:1px dashed var(--line-2);border-radius:10px;padding:10px 14px;font-size:13.5px;color:var(--ink-2)}
 .print-title{display:none}
+.omr-w{white-space:nowrap;display:inline-block}
+.omr{display:inline-block;height:.74em;width:calc(.74em * 1.493);vertical-align:-.04em;margin-inline:.14em}
 .credit{text-align:center;color:var(--muted);font-size:13px;padding:18px 16px 28px;border-top:1px solid var(--line);max-width:1400px;margin:0 auto}
 .credit b{color:var(--ink-2);font-weight:700}
 main+.credit{margin-top:-40px}
@@ -226,7 +242,7 @@ const SNAP_KEY = "ahliya-before-sync";
 function emptyDB(){
   return { version: 2, deleted: {}, meta: {},
     aza: { settings: { title: "جمعية العزاء", monthlyFee: 2, bankBalance: 0, currency: "ر.ع" }, settingsTs: 0,
-           groups: [], members: [], years: {}, expenses: [], income: [], receipts: [] },
+           groups: [], members: [], years: {}, expenses: [], income: [], receipts: [], debts: [], debtPays: [] },
     roscaIds: [],
     majlis: { settings: { title: "جمعية المجلس", currency: "ر.ع", contractTotal: 0 }, settingsTs: 0,
               groups: [], members: [], plans: [], overrides: {}, overridesTs: {}, payments: [], expenses: [], income: [],
@@ -249,9 +265,29 @@ function migrate(d){
     if (g) removeGroup(d, "majlis", g.id, `مساهمات أخرى — ${g.name}`, "mi-khalifa");
     d.fixes.khalifa = true;
   }
+  // currencies with digits in them (e.g. "20ر.ع") are cleaned, and receipts already issued are corrected too
+  for (const k of ["aza", "majlis", ...(d.roscaIds || [])]) {
+    const st = d[k] && d[k].settings; if (!st) continue;
+    const old = st.currency, cc = cleanCurrency(old);
+    if (old !== undefined && cc !== old) {
+      st.currency = cc; d[k].settingsTs = Date.now();
+      const fix = v => typeof v === "string" ? v.split(old).join(cc) : v;
+      for (const r of d[k].receipts || []) {
+        r.forText = fix(r.forText);
+        if (r.extra) r.extra = r.extra.map(([l, v]) => [l, fix(v)]);
+        if (r.lines) r.lines.forEach(l => l.detail = fix(l.detail));
+        r.u = Date.now();
+      }
+    }
+  }
   // closed associations ("جمعية مغلقة"): one top-level key each, listed in roscaIds
   d.roscaIds = (d.roscaIds || []).filter(k => d[k]);
   for (const k of d.roscaIds) { const r = d[k]; r.members = r.members || []; r.pay = r.pay || {}; r.payTs = r.payTs || {}; r.receipts = r.receipts || []; r.groups = r.groups || []; r.settingsTs = r.settingsTs || 0; }
+  // payout receipts issued before: «وذلك عن» becomes the association's name, the turn moves to its own line
+  for (const k of d.roscaIds) for (const rc of d[k].receipts) {
+    const m = rc.payout && /^مبلغ الجمعية حسب (الدور .*)$/.exec(rc.forText || "");
+    if (m) { rc.forText = d[k].settings.title; rc.extra = [["الدور", m[1]], ...(rc.extra || [])]; rc.u = Date.now(); }
+  }
   // one-time: the first closed association comes from the computer's built-in data (the phone receives it by sync)
   if (!d.fixes.rosca1) {
     if (SEED && SEED.r_m1 && !d.r_m1 && !d.deleted["assoc:r_m1"]) { d.r_m1 = JSON.parse(JSON.stringify(SEED.r_m1)); d.roscaIds.push("r_m1"); }
@@ -301,6 +337,7 @@ function touch(o){ if (o) o.u = now(); return o; }
 function tomb(key){ DB.deleted[key] = now(); }
 
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function cleanCurrency(c){ return String(c ?? "").replace(/[0-9٠-٩]/g, "").replace(/\s+/g, " ").trim() || "ر.ع"; }
 function save(){
   DB.meta.savedAt = new Date().toISOString();
   try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
@@ -319,7 +356,7 @@ function sum(arr, f = x => x){ return arr.reduce((s,x) => s + n(f(x)), 0); }
 /* ============================================================ state */
 const S = { a: null, tab: "dash", year: null, group: "", q: "", showOff: false, expYear: "" };
 const TABS = {
-  aza: [["dash","لوحة المعلومات"],["subs","الاشتراكات الشهرية"],["arrears","المتأخرات"],["expenses","المصروفات"],["income","إيرادات أخرى"],["members","الأعضاء والمجموعات"],["reports","التقارير السنوية"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
+  aza: [["dash","لوحة المعلومات"],["subs","الاشتراكات الشهرية"],["arrears","المتأخرات"],["expenses","المصروفات"],["debts","المديونية"],["income","إيرادات أخرى"],["members","الأعضاء والمجموعات"],["reports","التقارير السنوية"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
   majlis: [["dash","لوحة المعلومات"],["contrib","المساهمات"],["pay","تسجيل دفعة"],["late","المتخلفون عن الدفع"],["expenses","مصروفات البناء"],["income","إيرادات أخرى"],["contractor","المقاول"],["members","الأعضاء والمجموعات"],["plans","بنود المساهمة"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
 };
 
@@ -512,7 +549,8 @@ const AZA_VIEWS = {
       ${kpi("إجمالي المصروفات", money(t.exp)+cur(), `${DB.aza.expenses.length} مناسبة / بند`)}
       ${kpi("إيرادات أخرى", money(t.inc)+cur())}
       ${kpi("الرصيد الدفتري", money(t.balance)+cur(), "المحصّل + الإيرادات − المصروفات", t.balance >= 0 ? "good" : "bad")}
-      ${kpi("الرصيد البنكي", money(bank)+cur(), `الفرق عن الدفتري: ${fmt(t.balance - bank)}`)}
+      ${(() => { const dt = DEBT.totals(); return kpi("الرصيد البنكي", money(bank)+cur(), Math.abs(dt.unexplained) > 0.001 ? `فرق غير مفسَّر: ${fmt(dt.unexplained)}` : "مطابق للدفتري بعد المديونية ✓", Math.abs(dt.unexplained) > 0.001 ? "" : "good")
+        + kpi("المديونية القائمة", money(dt.outstanding)+cur(), `<a href="#" data-act="tab" data-tab="debts">${dt.count} مديونية — عرض</a>`, dt.outstanding ? "bad" : ""); })()}
       ${kpi("إجمالي المتأخرات", money(t.arrears)+cur(), "على جميع الأعضاء", "bad")}
       ${kpi(`محصّل ${c.y}`, money(cy.paid)+cur(), `المستحق حتى الآن ${fmt(cy.due)}`)}
       ${kpi("الأعضاء الفعالون", DB.aza.members.filter(m => m.active && !m.exempt).length, `${DB.aza.groups.length} مجموعة`)}
@@ -599,6 +637,7 @@ const AZA_VIEWS = {
   },
 
   expenses(){ return ledgerView("aza", "expenses", "المصروفات", "مصروفات العزاء والمناسبات", true); },
+  debts(){ return debtsView(); },
   income(){ return ledgerView("aza", "income", "إيرادات أخرى", "تبرعات وإيرادات من خارج الاشتراكات الشهرية", false); },
   members(){ return membersView("aza"); },
 
@@ -820,7 +859,7 @@ function settingsView(a){
       <form data-form="settings">
         <label class="fld"><span>اسم الجمعية</span><input class="inp" name="title" value="${esc(s.title)}" required></label>
         <div class="row2">
-          <label class="fld"><span>العملة</span><input class="inp" name="currency" value="${esc(s.currency)}"></label>
+          <label class="fld"><span>العملة <span class="t-mut">(«ر.ع» تظهر برمز الريال العُماني)</span></span><input class="inp" name="currency" value="${esc(s.currency)}"></label>
           <label class="fld"><span>اسم أمين الصندوق (يظهر في الإيصال)</span><input class="inp" name="treasurer" value="${esc(treasurer(a))}"></label>
         </div>
         ${extra}
@@ -1079,6 +1118,51 @@ function azaMonths(y, mid){
 }
 
 /* ============================================================ receipts */
+/* ============================================================ Omani rial symbol
+   the new official sign (Medium weight) replaces the text «ر.ع» wherever the app displays it;
+   WhatsApp texts and Excel keep «ر.ع» because the sign is not in Unicode yet */
+const OMR_D = "M1342.7,466.8c-.8-1.3-1.7-2.7-2.5-4-7.6-12.7-13.9-26.6-16.4-41.2-2.3-13.2-1-27.5,3.2-40.5,8.7-8.9,20-14.7,32.6-16.4,9.3-1.2,18.3-.3,27,3.3,8.9,3.8,16.9,9.6,24.1,16,8.2,7.3,22.3,24.1,22.3,24.1l15-26c-9.4-11.8-19.8-23.1-32.1-31.9-6.1-4.3-12.7-8-19.8-10.2-6.8-2.1-13.8-2.3-20.9-1.4-12.3,1.5-23.8,6.8-32.6,15.7-5.4,5.5-9.3,12-13.2,18.7-6,10.3-12.8,20.6-16.8,32-4.1,11.6-5.9,24.6-4.8,36.9.8,8.6,3.1,17,6.3,25h-53.8l-15,26h82.1c10.3,16.3,23.4,31,37.9,43.5,3.1,2.7,6.3,5.3,9.6,7.7h-159.4l-15,26h286.6l15-26h-50.8c-30.4-2.6-58.3-20.9-79.7-41.6-3.2-3.1-6.3-6.3-9.3-9.6h169.5l15.1-26h-204.4.2ZM1331,371c.2-.4.4-.7.5-1.1,3.1-6.2,8.5-12.7-2.3,5.2.6-1.4,1.2-2.7,1.8-4.1Z";
+const OMR_BOX = [1200.5, 338.1, 346.4, 232.0];
+const OMR_SVG = `<svg class="omr" viewBox="${OMR_BOX.join(" ")}" role="img" aria-label="ريال عماني"><path fill="currentColor" d="${OMR_D}"/></svg>`;
+function symbolize(root){
+  if (!root) return;
+  if (root.nodeType === 3) root = root.parentElement;
+  if (!root || root.closest?.("option,select,textarea,script,style,title")) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: x => x.nodeValue.includes("ر.ع") &&
+    !x.parentElement.closest("option,select,textarea,script,style,title") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+  const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  for (const x of nodes) {
+    const frag = document.createDocumentFragment();
+    x.nodeValue.split("ر.ع").forEach((part, i) => {
+      if (i) { const s = document.createElement("span"); s.className = "omr-w"; s.innerHTML = OMR_SVG; frag.appendChild(s); }
+      if (part) frag.appendChild(document.createTextNode(part));
+    });
+    x.replaceWith(frag);
+  }
+}
+new MutationObserver(ms => { for (const m of ms) for (const nd of m.addedNodes) symbolize(nd); })
+  .observe(document.body, { childList: true, subtree: true });
+/* canvas: draws text that may contain «ر.ع» with the sign in its place (same alignment rules as fillText) */
+const OMR_PATH = typeof Path2D !== "undefined" ? new Path2D(OMR_D) : null;
+function fillT(g, text, x, y){
+  text = String(text ?? "");
+  const k = text.indexOf("ر.ع");
+  if (k < 0 || !OMR_PATH) return g.fillText(text, x, y);
+  const L = text.slice(0, k).replace(/\s+$/, ""), R = text.slice(k + 3).replace(/^\s+/, "");
+  const size = +(/(\d+(?:\.\d+)?)px/.exec(g.font)?.[1] || 20);
+  const symH = size * 0.68, s = symH / OMR_BOX[3], symW = OMR_BOX[2] * s, gap = size * 0.22;
+  const wL = L ? g.measureText(L).width : 0, wR = R ? g.measureText(R).width : 0;
+  const W = wL + (L ? gap : 0) + symW + (R ? gap + wR : 0);
+  const align = g.textAlign, rightX = align === "left" ? x + W : align === "center" ? x + W / 2 : x;
+  g.textAlign = "right";
+  if (L) g.fillText(L, rightX, y);
+  const sx = rightX - wL - (L ? gap : 0) - symW;
+  const p = new Path2D(); p.addPath(OMR_PATH, new DOMMatrix([s, 0, 0, s, sx - OMR_BOX[0] * s, y - symH - OMR_BOX[1] * s]));
+  g.fill(p);
+  if (R) g.fillText(R, sx - gap, y);
+  g.textAlign = align;
+}
+
 function fmtCur(a, v){ return `${fmt(v)} ${DB[a].settings.currency || "ر.ع"}`; }
 function monthsText(idx){
   if (idx.length === 12) return "السنة كاملة";
@@ -1153,51 +1237,51 @@ async function drawReceipt(a, o){
   g.fillStyle = accent; g.fillRect(0, 0, W, 200);
   g.direction = "rtl";
   g.fillStyle = "#fff"; g.textAlign = "right";
-  g.font = font(800, 50); g.fillText(DB[a].settings.title, W - 50, 95);
-  g.font = font(500, 30); g.fillText(isGroup ? "إيصال استلام — دفعة مجموعة" : o.payout ? "إيصال تسليم مبلغ الجمعية حسب الدور" : o.inst ? "إيصال استلام قسط شهري" : "إيصال استلام مبلغ", W - 50, 150);
+  g.font = font(800, 50); fillT(g, DB[a].settings.title, W - 50, 95);
+  g.font = font(500, 30); fillT(g, isGroup ? "إيصال استلام — دفعة مجموعة" : o.payout ? "إيصال تسليم مبلغ الجمعية حسب الدور" : o.inst ? "إيصال استلام قسط شهري" : "إيصال استلام مبلغ", W - 50, 150);
   g.textAlign = "left";
-  g.font = font(700, 28); g.fillText(`رقم: ${o.no}`, 50, 95);
-  g.font = font(500, 26); g.fillText(`التاريخ: ${o.date}`, 50, 150);
+  g.font = font(700, 28); fillT(g, `رقم: ${o.no}`, 50, 95);
+  g.font = font(500, 26); fillT(g, `التاريخ: ${o.date}`, 50, 150);
   roundRect(g, 50, 240, W - 100, 220, 26); g.fillStyle = soft; g.fill();
   g.textAlign = "center"; g.fillStyle = "#55534e"; g.font = font(500, 30);
-  g.fillText(isGroup ? `إجمالي المبلغ المستلم — ${lines.length} أعضاء` : o.payout ? "المبلغ المسلَّم للمشترك" : o.inst ? "مبلغ القسط المستلم" : "المبلغ المستلم", W / 2, 300);
-  g.fillStyle = accent; g.font = font(800, 88); g.fillText(fmtCur(a, o.amount), W / 2, 410);
+  fillT(g, isGroup ? `إجمالي المبلغ المستلم — ${lines.length} أعضاء` : o.payout ? "المبلغ المسلَّم للمشترك" : o.inst ? "مبلغ القسط المستلم" : "المبلغ المستلم", W / 2, 300);
+  g.fillStyle = accent; g.font = font(800, 88); fillT(g, fmtCur(a, o.amount), W / 2, 410);
   let y = 530; g.textAlign = "right";
   for (const [l, ls] of rows) {
-    g.fillStyle = "#8a877f"; g.font = labFont; g.fillText(l, W - 60, y); y += 46;
-    g.fillStyle = "#1b1b19"; g.font = valFont; for (const ln of ls) { g.fillText(ln, W - 60, y); y += 46; }
+    g.fillStyle = "#8a877f"; g.font = labFont; fillT(g, l, W - 60, y); y += 46;
+    g.fillStyle = "#1b1b19"; g.font = valFont; for (const ln of ls) { fillT(g, ln, W - 60, y); y += 46; }
     y += 4; g.strokeStyle = "#e4e2dc"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y - 28); g.lineTo(W - 60, y - 28); g.stroke();
   }
   if (lines.length) {
     y += 20;
     roundRect(g, 50, y - 40, W - 100, 58, 12); g.fillStyle = soft; g.fill();
     g.fillStyle = accent; g.font = font(700, 26);
-    g.textAlign = "right"; g.fillText("العضو", W - 75, y);
-    g.textAlign = "left"; g.fillText("المبلغ", 75, y);
+    g.textAlign = "right"; fillT(g, "العضو", W - 75, y);
+    g.textAlign = "left"; fillT(g, "المبلغ", 75, y);
     y += 62;
     for (const l of lines) {
       g.fillStyle = "#1b1b19"; g.font = font(700, 28);
-      g.textAlign = "right"; g.fillText(l.name, W - 75, y);
-      g.textAlign = "left"; g.fillText(fmtCur(a, l.amount), 75, y);
-      if (l.detail) { g.textAlign = "right"; g.fillStyle = "#8a877f"; g.font = font(500, 22); g.fillText(l.detail, W - 75, y + 30); }
+      g.textAlign = "right"; fillT(g, l.name, W - 75, y);
+      g.textAlign = "left"; fillT(g, fmtCur(a, l.amount), 75, y);
+      if (l.detail) { g.textAlign = "right"; g.fillStyle = "#8a877f"; g.font = font(500, 22); fillT(g, l.detail, W - 75, y + 30); }
       const h = lineH(l);
       g.strokeStyle = "#eeece6"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + h - 34); g.lineTo(W - 60, y + h - 34); g.stroke();
       y += h;
     }
     g.fillStyle = accent; g.font = font(800, 30);
-    g.textAlign = "right"; g.fillText("الإجمالي", W - 75, y + 4);
-    g.textAlign = "left"; g.fillText(fmtCur(a, o.amount), 75, y + 4);
+    g.textAlign = "right"; fillT(g, "الإجمالي", W - 75, y + 4);
+    g.textAlign = "left"; fillT(g, fmtCur(a, o.amount), 75, y + 4);
   }
   if (sign) {  // the subscriber signs that the money was handed over
     const sy = H - 170 - sign + 60;
     g.textAlign = "right"; g.fillStyle = "#55534e"; g.font = font(500, 26);
-    g.fillText("توقيع المستلم:", W - 60, sy); g.fillText("توقيع أمين الصندوق:", W / 2 - 20, sy);
+    fillT(g, "توقيع المستلم:", W - 60, sy); fillT(g, "توقيع أمين الصندوق:", W / 2 - 20, sy);
     g.strokeStyle = "#b9b6ad"; g.lineWidth = 2; g.setLineDash([6, 6]); g.beginPath();
     g.moveTo(W - 250, sy + 6); g.lineTo(W / 2 + 30, sy + 6); g.moveTo(W / 2 - 270, sy + 6); g.lineTo(60, sy + 6); g.stroke(); g.setLineDash([]);
   }
   g.fillStyle = accent; g.fillRect(0, H - 12, W, 12);
-  g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 30); g.fillText("شكراً لكم وجزاكم الله خيراً", W / 2, H - 95);
-  g.fillStyle = "#55534e"; g.font = font(500, 24); g.fillText(`أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
+  g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 30); fillT(g, "شكراً لكم وجزاكم الله خيراً", W / 2, H - 95);
+  g.fillStyle = "#55534e"; g.font = font(500, 24); fillT(g, `أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
   return c;
 }
 /* stores a snapshot of the receipt (so a re-send shows it exactly as issued) and opens it */
@@ -1205,7 +1289,7 @@ function issueReceipt(a, o){
   let rec = o.batch ? DB[a].receipts.find(r => r.batch === o.batch) : o.no ? DB[a].receipts.find(r => r.no === o.no) : null;
   if (!rec) {
     const kind = o.kind || "single", extra = {};
-    if (kind === "single") { const m = member(a, o.memberId); extra.name = m?.name || ""; extra.groupName = o.groupName !== undefined ? o.groupName : shortGroup(groupName(a, m?.groupId)); }
+    if (kind === "single") { const m = member(a, o.memberId); extra.name = m?.name || o.name || ""; extra.groupName = o.groupName !== undefined ? o.groupName : shortGroup(groupName(a, m?.groupId)); }
     rec = touch({ ...o, ...extra, kind, id: uid("r"), no: o.no || nextReceiptNo(), date: o.date || today() });
     DB[a].receipts.push(rec); save();
   }
@@ -1433,25 +1517,25 @@ async function drawReport(a, gname, scope, d){
   g.fillStyle = accent; g.fillRect(0, 0, W, 200);
   g.direction = "rtl";
   g.fillStyle = "#fff"; g.textAlign = "right";
-  g.font = font(800, 50); g.fillText(DB[a].settings.title, W - 50, 95);
-  g.font = font(500, 30); g.fillText("تقرير حالة المجموعة", W - 50, 150);
-  g.textAlign = "left"; g.font = font(500, 26); g.fillText(`التاريخ: ${today()}`, 50, 150);
+  g.font = font(800, 50); fillT(g, DB[a].settings.title, W - 50, 95);
+  g.font = font(500, 30); fillT(g, "تقرير حالة المجموعة", W - 50, 150);
+  g.textAlign = "left"; g.font = font(500, 26); fillT(g, `التاريخ: ${today()}`, 50, 150);
   // three stat boxes
   const bw = (W - 100 - 2 * 20) / 3, stats = [["المدفوع", fmtCur(a, d.paid), accent], ["المتبقي", fmtCur(a, d.rem), d.rem ? bad : good], ["نسبة السداد", `${d.pct.toFixed(0)}%`, accent]];
   stats.forEach(([l, v, col], i) => {
     const x = W - 50 - (i + 1) * bw - i * 20;
     roundRect(g, x, 240, bw, 200, 22); g.fillStyle = soft; g.fill();
-    g.textAlign = "center"; g.fillStyle = "#55534e"; g.font = font(500, 26); g.fillText(l, x + bw / 2, 300);
+    g.textAlign = "center"; g.fillStyle = "#55534e"; g.font = font(500, 26); fillT(g, l, x + bw / 2, 300);
     let size = 52; g.font = font(800, size); while (g.measureText(v).width > bw - 30 && size > 28) g.font = font(800, --size);
-    g.fillStyle = col; g.fillText(v, x + bw / 2, 385);
+    g.fillStyle = col; fillT(g, v, x + bw / 2, 385);
   });
   // progress bar
   roundRect(g, 50, 462, W - 100, 14, 7); g.fillStyle = "#eeece6"; g.fill();
   if (d.pct > 0) { const pw = (W - 100) * d.pct / 100; roundRect(g, W - 50 - pw, 462, pw, 14, 7); g.fillStyle = accent; g.fill(); }
   let y = 560; g.textAlign = "right";
   for (const [l, v] of [["المجموعة", gname], ["الفترة / البند", scope], ["الأعضاء", `${d.lines.length} عضو — المتأخرون: ${d.late}`]]) {
-    g.fillStyle = "#8a877f"; g.font = font(500, 24); g.fillText(l, W - 60, y);
-    g.fillStyle = "#1b1b19"; g.font = font(700, 30); g.fillText(v, W - 60, y + 40);
+    g.fillStyle = "#8a877f"; g.font = font(500, 24); fillT(g, l, W - 60, y);
+    g.fillStyle = "#1b1b19"; g.font = font(700, 30); fillT(g, v, W - 60, y + 40);
     g.strokeStyle = "#e4e2dc"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + 62); g.lineTo(W - 60, y + 62); g.stroke();
     y += 96;
   }
@@ -1459,28 +1543,28 @@ async function drawReport(a, gname, scope, d){
   y += 30;
   roundRect(g, 50, y - 40, W - 100, 58, 12); g.fillStyle = soft; g.fill();
   g.fillStyle = accent; g.font = font(700, 25);
-  g.textAlign = "right"; g.fillText("العضو", W - 75, y);
-  g.textAlign = "center"; g.fillText("المدفوع", 285, y); g.fillText("المتبقي", 125, y);
+  g.textAlign = "right"; fillT(g, "العضو", W - 75, y);
+  g.textAlign = "center"; fillT(g, "المدفوع", 285, y); fillT(g, "المتبقي", 125, y);
   y += 62;
   for (const l of laid) {
     let size = 27; g.font = font(700, size); while (g.measureText(l.name).width > NAME_W && size > 19) g.font = font(700, --size);
-    g.textAlign = "right"; g.fillStyle = "#1b1b19"; g.fillText(l.name, W - 75, y);
+    g.textAlign = "right"; g.fillStyle = "#1b1b19"; fillT(g, l.name, W - 75, y);
     g.font = font(600, 26); g.textAlign = "center";
-    g.fillStyle = "#1b1b19"; g.fillText(fmt(l.paid), 285, y);
-    g.fillStyle = l.rem > 0 ? bad : good; g.font = font(800, 26); g.fillText(l.rem > 0 ? fmt(l.rem) : "✓", 125, y);
+    g.fillStyle = "#1b1b19"; fillT(g, fmt(l.paid), 285, y);
+    g.fillStyle = l.rem > 0 ? bad : good; g.font = font(800, 26); fillT(g, l.rem > 0 ? fmt(l.rem) : "✓", 125, y);
     g.textAlign = "right"; g.fillStyle = "#8a877f"; g.font = detFont;
-    l.det.forEach((t, i) => g.fillText(t, W - 75, y + 30 + i * 28));
+    l.det.forEach((t, i) => fillT(g, t, W - 75, y + 30 + i * 28));
     const h = lineH(l);
     g.strokeStyle = "#eeece6"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + h - 32); g.lineTo(W - 60, y + h - 32); g.stroke();
     y += h;
   }
   g.font = font(800, 28); g.fillStyle = accent;
-  g.textAlign = "right"; g.fillText("الإجمالي", W - 75, y + 6);
-  g.textAlign = "center"; g.fillText(fmt(d.paid), 285, y + 6);
-  g.fillStyle = d.rem ? bad : good; g.fillText(fmt(d.rem), 125, y + 6);
+  g.textAlign = "right"; fillT(g, "الإجمالي", W - 75, y + 6);
+  g.textAlign = "center"; fillT(g, fmt(d.paid), 285, y + 6);
+  g.fillStyle = d.rem ? bad : good; fillT(g, fmt(d.rem), 125, y + 6);
   g.fillStyle = accent; g.fillRect(0, H - 12, W, 12);
-  g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 28); g.fillText("نرجو من المتأخرين المبادرة بالسداد — وجزاكم الله خيراً", W / 2, H - 95);
-  g.fillStyle = "#55534e"; g.font = font(500, 24); g.fillText(`أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
+  g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 28); fillT(g, "نرجو من المتأخرين المبادرة بالسداد — وجزاكم الله خيراً", W / 2, H - 95);
+  g.fillStyle = "#55534e"; g.font = font(500, 24); fillT(g, `أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
   return c;
 }
 async function groupReport(a, gid){
@@ -1584,7 +1668,7 @@ function syncView(){
 }
 
 const SYNC_LISTS = {
-  aza: ["groups", "members", "expenses", "income", "receipts"],
+  aza: ["groups", "members", "expenses", "income", "receipts", "debts", "debtPays"],
   majlis: ["groups", "members", "plans", "payments", "expenses", "income", "stages", "contractorPayments", "receipts"],
 };
 /* merges R into L in place: newest change per record wins; deletions travel as tombstones */
@@ -1954,8 +2038,9 @@ function roPayoutReceipt(sid){
   if (!p.receiptNo) { p.receiptNo = nextReceiptNo(); touch(s); save(); }
   const left = Math.max(0, n(s.inst) * RO.N(r) - RO.paid(r, sid));
   issueReceipt(a, { no: p.receiptNo, payout: true, date: p.date || today(), memberId: sid, amount: p.amount, groupName: "",
-    forText: `مبلغ الجمعية حسب الدور ${s.order} — ${RO.label(r, p.month)}${p.note ? " — " + p.note : ""}`,
-    extra: [["القسط الشهري", fmtCur(a, s.inst)], ["ما دفعه حتى الآن", fmtCur(a, RO.paid(r, sid))], ["الأقساط المتبقية عليه", left ? fmtCur(a, left) : "لا يوجد ✓"]] });
+    forText: r.settings.title,
+    extra: [["الدور", `الدور ${s.order} — ${RO.label(r, p.month)}${p.note ? " — " + p.note : ""}`], ["القسط الشهري", fmtCur(a, s.inst)],
+            ["ما دفعه حتى الآن", fmtCur(a, RO.paid(r, sid))], ["الأقساط المتبقية عليه", left ? fmtCur(a, left) : "لا يوجد ✓"]] });
 }
 function addAssocForm(){
   const d = new Date(), ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -1963,11 +2048,10 @@ function addAssocForm(){
     ${fld("اسم الجمعية", "title", "", "text", 'required placeholder="مثال: جمعية الأصدقاء"')}
     <label class="fld"><span>نوع الجمعية</span><select class="inp" name="type"><option value="rosca">جمعية مغلقة — أقساط شهرية واستلام بالدور</option></select></label>
     <div class="row2">${fld("شهر البداية", "start", ym, "month", "required")}${fld("المدة بالأشهر", "months", 24, "number", "required min=1 max=120 step=1")}</div>
-    ${fld("العملة", "currency", "ر.ع")}
-    <p class="sub">بعد الإنشاء أضف المشتركين وأقساطهم من «المشتركون».</p>`,
+    <p class="sub">بعد الإنشاء أضف المشتركين وأقساطهم (القسط الشهري لكل مشترك) من «المشتركون».</p>`,
   { onSave: v => {
       const key = "r_" + Date.now().toString(36);
-      DB[key] = newRosca(v.title.trim(), v.start, Math.round(n(v.months)), v.currency);
+      DB[key] = newRosca(v.title.trim(), v.start, Math.round(n(v.months)), "ر.ع");
       DB.roscaIds.push(key);
       S.a = key; S.tab = "members";
       toast(`تمت إضافة «${v.title.trim()}»`);
@@ -2066,6 +2150,159 @@ function mergeRoscas(L, R, tombs, st){
   }
   for (const key of [...L.roscaIds]) if (dead(`assoc:${key}`, 0)) { delete L[key]; L.roscaIds = L.roscaIds.filter(k => k !== key); st.del++; }
 }
+
+/* ============================================================ المديونية (جمعية العزاء)
+   money taken out of the fund for something other than its purpose; it explains the gap between the book balance
+   and the actual bank balance, and is repaid in one payment or in monthly instalments (amount ÷ months) */
+const DEBT = {
+  paid(id){ return sum(DB.aza.debtPays.filter(p => p.debtId === id), p => p.amount); },
+  rem(d){ return Math.max(0, n(d.amount) - DEBT.paid(d.id)); },
+  inst(d){ return d.mode === "monthly" && n(d.months) ? n(d.amount) / n(d.months) : n(d.amount); },
+  monthsDue(d){
+    if (d.mode !== "monthly") return 1;
+    const [y, m] = String(d.start || today().slice(0, 7)).split("-").map(Number), now2 = new Date();
+    return Math.max(0, Math.min(n(d.months), (now2.getFullYear() - y) * 12 + now2.getMonth() - (m - 1) + 1));
+  },
+  due(d){ return Math.min(n(d.amount), d.mode === "monthly" ? DEBT.inst(d) * DEBT.monthsDue(d) : n(d.amount)); },
+  late(d){ return Math.max(0, DEBT.due(d) - DEBT.paid(d.id)); },
+  startLabel(d){ const [y, m] = String(d.start || "").split("-").map(Number); return y && m ? `${MONTHS[m - 1]} ${y}` : ""; },
+  endLabel(d){
+    if (d.mode !== "monthly") return "";
+    const [y, m] = String(d.start || "").split("-").map(Number), t = (m - 1) + n(d.months) - 1;
+    return y ? `${MONTHS[((t % 12) + 12) % 12]} ${y + Math.floor(t / 12)}` : "";
+  },
+  totals(){
+    const ds = DB.aza.debts, amount = sum(ds, d => d.amount), paid = sum(ds, d => DEBT.paid(d.id));
+    const book = AZ.totals().balance, bank = n(DB.aza.settings.bankBalance), outstanding = amount - paid;
+    return { count: ds.length, amount, paid, outstanding, late: sum(ds, d => DEBT.late(d)), book, bank,
+             gap: book - bank, unexplained: book - outstanding - bank };
+  },
+  name(d){ return member("aza", d.memberId)?.name || d.name || ""; },
+};
+function debtsView(){
+  const a = "aza", t = DEBT.totals(), ds = DB.aza.debts.slice().sort((x, y) => DEBT.rem(y) - DEBT.rem(x));
+  const how = d => d.mode === "monthly" ? `${fmt(d.months)} شهراً × ${fmtCur(a, DEBT.inst(d))}<br><span class="t-mut">${DEBT.startLabel(d)} ← ${DEBT.endLabel(d)}</span>` : "دفعة واحدة";
+  return pageHead("المديونية", "مبالغ صُرفت من الصندوق لغير هدف الجمعية، وتُسدَّد دفعة واحدة أو بأقساط شهرية. تفسّر الفرق بين الرصيد الدفتري والرصيد البنكي.",
+    printBtn + xlsBtn + `<button class="btn pri" data-act="debtadd">+ مديونية جديدة</button>`) + `
+  <div class="kpis">
+    ${kpi("إجمالي المديونيات", money(t.amount) + cur(), `${t.count} مديونية`, "acc")}
+    ${kpi("المسدَّد", money(t.paid) + cur(), "", "good")}
+    ${kpi("المتبقي على المدينين", money(t.outstanding) + cur(), "", t.outstanding ? "bad" : "good")}
+    ${kpi("المتأخر عن موعده", money(t.late) + cur(), "", t.late ? "bad" : "")}
+  </div>
+  <div class="card" style="margin-bottom:14px"><div class="card-h"><h2>مطابقة الرصيد البنكي</h2></div><div class="tw"><table>
+    <tr><td>الرصيد الدفتري (المحصّل + الإيرادات − المصروفات)</td><td class="n"><b>${fmtCur(a, t.book)}</b></td></tr>
+    <tr><td>− المديونية القائمة (المتبقي على المدينين)</td><td class="n">${fmtCur(a, t.outstanding)}</td></tr>
+    <tr class="tot"><td>= الرصيد المفترض في البنك</td><td class="n">${fmtCur(a, t.book - t.outstanding)}</td></tr>
+    <tr><td>الرصيد البنكي الفعلي <a href="#" data-act="tab" data-tab="settings" class="noprint">(تعديل)</a></td><td class="n">${fmtCur(a, t.bank)}</td></tr>
+    <tr class="${Math.abs(t.unexplained) > 0.001 ? "" : "tot"}"><td><b>الفرق غير المفسَّر</b>${Math.abs(t.unexplained) > 0.001 ? `<br><span class="t-mut">فرق لا تغطيه المديونيات المسجّلة — سجّل مديونية به أو راجع الرصيد البنكي</span>` : ""}</td>
+      <td class="n"><b class="${Math.abs(t.unexplained) > 0.001 ? "t-bad" : "t-good"}">${Math.abs(t.unexplained) > 0.001 ? fmtCur(a, t.unexplained) : "مطابق ✓"}</b></td></tr>
+  </table></div></div>
+  <div class="bar noprint">${searchBox()}</div>
+  <div class="card"><div class="tw"><table class="export"><thead><tr><th>المدين</th><th>البيان</th><th>التاريخ</th><th class="n">المبلغ</th><th>طريقة السداد</th><th class="n">المسدَّد</th><th class="n">المتبقي</th><th class="n">المتأخر</th><th class="noprint"></th></tr></thead><tbody>
+  ${ds.map(d => `<tr data-name="${esc(norm(DEBT.name(d) + " " + (d.title || "")))}"><td class="nm">${esc(DEBT.name(d))}</td><td>${esc(d.title)}</td><td class="t-mut" style="white-space:nowrap">${esc(d.date)}</td>
+    <td class="n"><b>${fmt(d.amount)}</b></td><td>${how(d)}</td><td class="n">${fmt(DEBT.paid(d.id))}</td>
+    <td class="n">${DEBT.rem(d) ? `<span class="t-bad">${fmt(DEBT.rem(d))}</span>` : `<span class="pill good">مسدَّدة</span>`}</td>
+    <td class="n">${DEBT.late(d) ? `<span class="pill bad">${fmt(DEBT.late(d))}</span>` : "—"}</td>
+    <td class="noprint" style="white-space:nowrap">${DEBT.rem(d) ? `<button class="btn sm pri" data-act="debtpay" data-id="${d.id}">💵 سداد</button>` : ""}
+      <button class="btn sm" data-act="debtstmt" data-id="${d.id}">كشف</button><button class="btn sm ghost" data-act="debtadd" data-id="${d.id}">تعديل</button><button class="btn sm ghost danger" data-act="debtdel" data-id="${d.id}">حذف</button></td></tr>`).join("")
+    || `<tr><td colspan="9" class="empty">لا توجد مديونيات مسجّلة</td></tr>`}
+  </tbody><tfoot><tr class="grand"><td>المجموع</td><td></td><td></td><td class="n">${fmt(t.amount)}</td><td></td><td class="n">${fmt(t.paid)}</td><td class="n">${fmt(t.outstanding)}</td><td class="n">${fmt(t.late)}</td><td class="noprint"></td></tr></tfoot></table></div></div>`;
+}
+function debtForm(id){
+  const a = "aza", d = id ? DB.aza.debts.find(x => x.id === id) : null, t = DEBT.totals();
+  const gap = Math.max(0, t.unexplained);
+  const f = modal(d ? "تعديل مديونية" : "مديونية جديدة", `
+    <label class="fld"><span>المدين</span><input class="inp" name="who" list="debt-who" value="${esc(d ? DEBT.name(d) : "")}" required placeholder="اختر عضواً أو اكتب اسماً"></label>
+    <datalist id="debt-who">${sortedMembers("aza").map(m => `<option value="${esc(m.name)}">`).join("")}</datalist>
+    ${fld("البيان / سبب الصرف", "title", d?.title, "text", 'placeholder="مثال: سلفة، مصاريف خارج هدف الجمعية"')}
+    <div class="row2">
+      <label class="fld"><span>المبلغ</span><input class="inp" name="amount" type="number" step="0.001" min="0" required value="${d ? n(d.amount) : ""}"></label>
+      ${fld("تاريخ الصرف", "date", d?.date || today(), "date")}
+    </div>
+    ${!d && gap ? `<button type="button" class="btn sm" data-gap style="margin:-4px 0 12px">= الفرق البنكي غير المفسَّر (${fmtCur(a, gap)})</button>` : ""}
+    <div class="row2">
+      <label class="fld"><span>طريقة السداد</span><select class="inp" name="mode"><option value="lump" ${d?.mode !== "monthly" ? "selected" : ""}>دفعة واحدة</option><option value="monthly" ${d?.mode === "monthly" ? "selected" : ""}>أقساط شهرية</option></select></label>
+      <label class="fld" data-m><span>عدد الأشهر</span><input class="inp" name="months" type="number" min="1" step="1" value="${d?.months || 10}"></label>
+    </div>
+    <div class="row2" data-m>${fld("يبدأ السداد من شهر", "start", d?.start || today().slice(0, 7), "month")}<div></div></div>
+    <div class="muted-box" id="debt-prev"></div>`,
+  { onSave: v => {
+      const who = v.who.trim(), m = DB.aza.members.find(x => x.name === who);
+      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
+      if (v.mode === "monthly" && n(v.months) < 1) { toast("أدخل عدد الأشهر"); return false; }
+      if (d && n(v.amount) < DEBT.paid(d.id)) { toast("المبلغ أقل مما سُدِّد منه"); return false; }
+      const rec = { memberId: m?.id || null, name: m ? "" : who, title: v.title.trim(), amount: n(v.amount), date: v.date,
+                    mode: v.mode, months: v.mode === "monthly" ? Math.round(n(v.months)) : 0, start: v.mode === "monthly" ? v.start : "" };
+      if (d) touch(Object.assign(d, rec)); else DB.aza.debts.push(touch({ id: uid("db"), ...rec }));
+      toast("تم حفظ المديونية");
+  }});
+  const prev = () => {
+    const monthly = f.querySelector("[name=mode]").value === "monthly";
+    f.querySelectorAll("[data-m]").forEach(x => x.style.display = monthly ? "" : "none");
+    const amt = n(f.querySelector("[name=amount]").value), mo = Math.max(1, Math.round(n(f.querySelector("[name=months]").value)));
+    f.querySelector("#debt-prev").innerHTML = !amt ? "أدخل المبلغ لعرض طريقة السداد." : monthly
+      ? `القسط الشهري: <b>${fmtCur(a, amt / mo)}</b> لمدة ${mo} شهراً، من ${DEBT.startLabel({ start: f.querySelector("[name=start]").value })} إلى ${DEBT.endLabel({ mode: "monthly", start: f.querySelector("[name=start]").value, months: mo })}`
+      : `يُسدَّد المبلغ كاملاً (${fmtCur(a, amt)}) دفعة واحدة.`;
+  };
+  f.addEventListener("input", prev); f.addEventListener("change", prev);
+  f.querySelector("[data-gap]")?.addEventListener("click", () => { f.querySelector("[name=amount]").value = Math.round(gap * 1000) / 1000; prev(); });
+  prev();
+}
+function debtPayForm(id){
+  const a = "aza", d = DB.aza.debts.find(x => x.id === id), rem = DEBT.rem(d);
+  const sug = d.mode === "monthly" ? Math.min(rem, Math.max(DEBT.late(d), DEBT.inst(d))) : rem;
+  modal(`سداد مديونية — ${DEBT.name(d)}`, `
+    <p class="sub" style="margin-bottom:10px">${esc(d.title || "")} · المتبقي ${fmtCur(a, rem)}${d.mode === "monthly" ? ` · القسط ${fmtCur(a, DEBT.inst(d))}` : ""}${DEBT.late(d) ? ` · <span class="t-bad">متأخر ${fmtCur(a, DEBT.late(d))}</span>` : ""}</p>
+    <div class="row2">${fld("المبلغ المسدَّد", "amount", Math.round(sug * 1000) / 1000, "number", `required min=0 max=${rem}`)}${fld("التاريخ", "date", today(), "date")}</div>
+    ${fld("ملاحظة", "note", "")}`,
+  { altLabel: "حفظ وإصدار إيصال", onSave: v => {
+      const amt = n(v.amount);
+      if (!amt) { toast("أدخل المبلغ"); return false; }
+      if (amt > rem + 0.001) { toast(`المبلغ أكبر من المتبقي (${fmt(rem)})`); return false; }
+      const p = touch({ id: uid("dp"), debtId: id, amount: amt, date: v.date, note: v.note });
+      DB.aza.debtPays.push(p);
+      toast(`تم تسجيل سداد ${fmt(amt)}`);
+      if (v.__alt) return () => debtReceipt(p.id);
+  }});
+}
+function debtReceipt(pid){
+  const a = "aza", p = DB.aza.debtPays.find(x => x.id === pid); if (!p) return;
+  const d = DB.aza.debts.find(x => x.id === p.debtId);
+  if (!p.receiptNo) { p.receiptNo = nextReceiptNo(); touch(p); save(); }
+  issueReceipt(a, { no: p.receiptNo, date: p.date || today(), memberId: d.memberId, name: DEBT.name(d), groupName: "", amount: p.amount,
+    forText: `سداد مديونية${d.title ? " — " + d.title : ""}`,
+    extra: [["أصل المديونية", fmtCur(a, d.amount)], ["إجمالي المسدَّد", fmtCur(a, DEBT.paid(d.id))], ["المتبقي", DEBT.rem(d) ? fmtCur(a, DEBT.rem(d)) : "مسدَّدة بالكامل ✓"]] });
+}
+function debtStatement(id){
+  const a = "aza", d = DB.aza.debts.find(x => x.id === id), ps = DB.aza.debtPays.filter(p => p.debtId === id);
+  modal(`كشف مديونية — ${DEBT.name(d)}`, `
+    <p class="sub" style="margin-bottom:10px">${esc(d.title || "")} · ${esc(d.date)} · ${d.mode === "monthly" ? `${d.months} شهراً × ${fmtCur(a, DEBT.inst(d))}` : "دفعة واحدة"}</p>
+    <div class="kpis">${kpi("المبلغ", money(d.amount))}${kpi("المسدَّد", money(DEBT.paid(id)), "", "good")}${kpi("المتبقي", money(DEBT.rem(d)), "", DEBT.rem(d) ? "bad" : "good")}</div>
+    <div class="tw"><table><thead><tr><th>التاريخ</th><th class="n">المبلغ</th><th>ملاحظة</th><th></th></tr></thead><tbody>
+    ${ps.slice().reverse().map(p => `<tr><td>${esc(p.date)}</td><td class="n">${fmt(p.amount)}</td><td>${esc(p.note)}</td>
+      <td style="white-space:nowrap"><button type="button" class="btn sm" data-act="debtreceipt" data-id="${p.id}">🧾 إيصال</button><button type="button" class="btn sm ghost danger" data-act="debtdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("")
+      || `<tr><td colspan="4" class="empty">لم يُسدَّد شيء بعد</td></tr>`}</tbody></table></div>
+    ${DEBT.rem(d) ? `<div class="bar" style="margin-top:12px"><button type="button" class="btn pri" data-act="debtpay" data-id="${id}">💵 تسجيل سداد</button></div>` : ""}`, { wide: true });
+}
+const DEBT_ACT = {
+  debtadd(d){ debtForm(d.id); },
+  debtpay(d){ debtPayForm(d.id); },
+  debtstmt(d){ debtStatement(d.id); },
+  debtreceipt(d){ debtReceipt(d.id); },
+  debtdel(d){
+    const x = DB.aza.debts.find(y => y.id === d.id);
+    if (DEBT.paid(x.id)) return toast("لا يمكن حذف مديونية عليها سداد مسجّل — احذف السدادات أولاً من «كشف»");
+    if (!confirm(`حذف مديونية ${DEBT.name(x)} بمبلغ ${fmt(x.amount)}؟`)) return;
+    DB.aza.debts = DB.aza.debts.filter(y => y.id !== x.id); tomb(`aza:debts:${x.id}`); save(); render();
+  },
+  debtdelpay(d){
+    const p = DB.aza.debtPays.find(y => y.id === d.id); if (!p) return;
+    if (!confirm(`حذف سداد بمبلغ ${fmt(p.amount)}؟`)) return;
+    DB.aza.debtPays = DB.aza.debtPays.filter(y => y.id !== p.id); tomb(`aza:debtPays:${p.id}`); save();
+    closeModal(); render(); debtStatement(p.debtId);
+  },
+};
 
 /* ============================================================ actions */
 const ACT = {
@@ -2205,7 +2442,7 @@ const CHG = {
   },
 };
 
-Object.assign(ACT, RO_ACT); Object.assign(CHG, RO_CHG);
+Object.assign(ACT, RO_ACT, DEBT_ACT); Object.assign(CHG, RO_CHG);
 
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
@@ -2238,7 +2475,7 @@ document.addEventListener("submit", e => {
   const v = Object.fromEntries(new FormData(f));
   if (f.dataset.form === "settings") {
     const s = DB[S.a].settings;
-    Object.entries(v).forEach(([k, val]) => s[k] = ["monthlyFee","bankBalance","contractTotal","months"].includes(k) ? n(val) : val);
+    Object.entries(v).forEach(([k, val]) => s[k] = ["monthlyFee","bankBalance","contractTotal","months"].includes(k) ? n(val) : k === "currency" ? cleanCurrency(val) : val);
     DB[S.a].settingsTs = now();
     save(); render(); toast("تم حفظ الإعدادات");
   }
@@ -2316,6 +2553,7 @@ function exportXLS(){
   const html = tables.map(t => {
     const c = t.cloneNode(true);
     c.querySelectorAll(".noprint").forEach(x => x.remove());
+    c.querySelectorAll(".omr-w").forEach(x => x.replaceWith("ر.ع"));
     c.querySelectorAll("tr[hidden]").forEach(x => x.remove());
     c.querySelectorAll("input").forEach(i => i.replaceWith(document.createTextNode(i.type === "checkbox" ? (i.checked ? "✓" : "") : i.value)));
     return c.outerHTML;
