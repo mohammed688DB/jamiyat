@@ -1200,7 +1200,7 @@ async function showReceipt(a, rec){
     if (b.dataset.r === "dl") return download(fname, blob, "image/png");
     const file = new File([blob], fname, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], text }); return; } catch (err) { if (err.name === "AbortError") return; }
+      try { await navigator.share({ files: [file] }); /* image only — the text goes via «إرسال نصي» */ return; } catch (err) { if (err.name === "AbortError") return; }
     }
     download(fname, blob, "image/png"); window.open(waLink(ph, text), "_blank");
     toast("نُزّلت صورة الإيصال — أرفقها في محادثة واتساب");
@@ -1486,7 +1486,7 @@ async function groupReport(a, gid){
     if (b.dataset.r === "dl") return download(fname, blob, "image/png");
     const file = new File([blob], fname, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], text }); return; } catch (err) { if (err.name === "AbortError") return; }
+      try { await navigator.share({ files: [file] }); /* image only — the text goes via «إرسال نصي» */ return; } catch (err) { if (err.name === "AbortError") return; }
     }
     download(fname, blob, "image/png"); window.open(waLink(ph, text), "_blank");
     toast("نُزّلت صورة التقرير — أرفقها في محادثة واتساب");
