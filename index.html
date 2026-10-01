@@ -28,6 +28,7 @@ html,body{margin:0}
 body{background:var(--page);color:var(--ink);font-family:Tajawal,"Segoe UI",Tahoma,Arial,sans-serif;font-size:15px;line-height:1.55}
 body.aza{--accent:var(--aza);--accent-soft:var(--aza-soft)}
 body.majlis{--accent:var(--majlis);--accent-soft:var(--majlis-soft)}
+body.rosca{--accent:#3d4f91;--accent-soft:#e7eaf6}
 button,input,select,textarea{font:inherit;color:inherit}
 .num,td.n,th.n{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:plaintext}
 a{color:var(--accent)}
@@ -38,7 +39,8 @@ a{color:var(--accent)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;cursor:pointer;background:none;border:0;padding:0}
 .brand .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:17px}
 .brand small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
-.switch{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-inline-start:auto}
+.switch{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-inline-start:auto;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.switch button{white-space:nowrap}
 .switch button{border:0;background:none;padding:6px 14px;border-radius:7px;cursor:pointer;font-weight:700;color:var(--ink-2)}
 .switch button.on{background:var(--accent);color:#fff}
 .tabs{max-width:1400px;margin:auto;display:flex;gap:2px;padding:0 12px;overflow-x:auto;scrollbar-width:thin}
@@ -225,6 +227,7 @@ function emptyDB(){
   return { version: 2, deleted: {}, meta: {},
     aza: { settings: { title: "جمعية العزاء", monthlyFee: 2, bankBalance: 0, currency: "ر.ع" }, settingsTs: 0,
            groups: [], members: [], years: {}, expenses: [], income: [], receipts: [] },
+    roscaIds: [],
     majlis: { settings: { title: "جمعية المجلس", currency: "ر.ع", contractTotal: 0 }, settingsTs: 0,
               groups: [], members: [], plans: [], overrides: {}, overridesTs: {}, payments: [], expenses: [], income: [],
               stages: [], contractorPayments: [], receipts: [] } };
@@ -245,6 +248,14 @@ function migrate(d){
     const g = d.majlis.groups.find(g => /خليفة بن راشد/.test(g.name));
     if (g) removeGroup(d, "majlis", g.id, `مساهمات أخرى — ${g.name}`, "mi-khalifa");
     d.fixes.khalifa = true;
+  }
+  // closed associations ("جمعية مغلقة"): one top-level key each, listed in roscaIds
+  d.roscaIds = (d.roscaIds || []).filter(k => d[k]);
+  for (const k of d.roscaIds) { const r = d[k]; r.members = r.members || []; r.pay = r.pay || {}; r.payTs = r.payTs || {}; r.receipts = r.receipts || []; r.groups = r.groups || []; r.settingsTs = r.settingsTs || 0; }
+  // one-time: the first closed association comes from the computer's built-in data (the phone receives it by sync)
+  if (!d.fixes.rosca1) {
+    if (SEED && SEED.r_m1 && !d.r_m1 && !d.deleted["assoc:r_m1"]) { d.r_m1 = JSON.parse(JSON.stringify(SEED.r_m1)); d.roscaIds.push("r_m1"); }
+    d.fixes.rosca1 = true;
   }
   d.version = 2;
   return d;
@@ -385,12 +396,12 @@ const MJ = {
 
 /* ============================================================ rendering shell */
 function render(){
-  document.body.className = S.a || "";
+  document.body.className = S.a ? (isRosca(S.a) ? "rosca" : S.a) : "";
   const h = S.a ? `#${S.a}/${S.tab}` : "#";
   if (location.hash !== h) history.replaceState(null, "", h);
   const app = document.getElementById("app");
   if (!S.a) { app.innerHTML = homeView() + credit(); return; }
-  const view = S.tab === "sync" ? syncView : S.tab === "receipts" ? receiptsView : (S.a === "aza" ? AZA_VIEWS : MJ_VIEWS)[S.tab] || (() => "");
+  const view = S.tab === "sync" ? syncView : S.tab === "receipts" ? receiptsView : (S.a === "aza" ? AZA_VIEWS : S.a === "majlis" ? MJ_VIEWS : RO_VIEWS)[S.tab] || (() => "");
   app.innerHTML = shell(view());
   applySearch();
 }
@@ -399,14 +410,11 @@ function shell(content){
   return `
   <header class="top">
     <div class="top-in">
-      <button class="brand" data-act="home"><span class="logo">${S.a === "aza" ? "☾" : "⌂"}</span><span>${esc(t)}<small>تطبيق محاسبة الجمعيات الأهلية</small></span></button>
-      <div class="switch" role="tablist">
-        <button class="${S.a==="aza"?"on":""}" data-act="open" data-a="aza">جمعية العزاء</button>
-        <button class="${S.a==="majlis"?"on":""}" data-act="open" data-a="majlis">جمعية المجلس</button>
-      </div>
+      <button class="brand" data-act="home"><span class="logo">${S.a === "aza" ? "☾" : S.a === "majlis" ? "⌂" : "◎"}</span><span>${esc(t)}<small>تطبيق محاسبة الجمعيات الأهلية</small></span></button>
+      <div class="switch" role="tablist">${assocList().map(k => `<button class="${S.a === k ? "on" : ""}" data-act="open" data-a="${k}">${esc(DB[k].settings.title)}</button>`).join("")}</div>
       <button class="btn sm topsync" data-act="tab" data-tab="sync" title="المزامنة بين الأجهزة">⇅ مزامنة</button>
     </div>
-    <nav class="tabs">${TABS[S.a].map(([k,l]) => `<button class="${S.tab===k?"on":""}" data-act="tab" data-tab="${k}">${l}</button>`).join("")}</nav>
+    <nav class="tabs">${tabsOf(S.a).map(([k,l]) => `<button class="${S.tab===k?"on":""}" data-act="tab" data-tab="${k}">${l}</button>`).join("")}</nav>
   </header>
   <main>${backupNag()}${content}</main>${credit()}`;
 }
@@ -470,6 +478,21 @@ function homeView(){
         <p>مساهمات بناء مجلس البلدة — ${DB.majlis.plans.length} بنود مساهمة ومتابعة المقاول</p>
         <dl><div><dt>المحصّل</dt><dd>${money(m.paid)}</dd></div><div><dt>المتبقي على الأعضاء</dt><dd class="t-bad">${money(m.rem)}</dd></div>
         <div><dt>الأعضاء</dt><dd>${m.count}</dd></div><div><dt>الرصيد</dt><dd>${money(m.balance)}</dd></div></dl>
+      </button>
+      ${(DB.roscaIds || []).filter(k => DB[k]).map(k => {
+        const r = DB[k], t = RO.totals(r), sc = RO.schedule(r), N = RO.N(r);
+        const next = RO.shares(r).filter(s => !s.paidOut).sort((x, y) => (sc.month[x.id] ?? 1e9) - (sc.month[y.id] ?? 1e9))[0];
+        return `<button class="acard" data-act="open" data-a="${k}">
+          <div class="ic" style="background:#3d4f91">◎</div>
+          <h2>${esc(r.settings.title)}</h2>
+          <p>جمعية مغلقة — ${N} شهراً من ${RO.label(r, 0)} إلى ${RO.label(r, N - 1)}</p>
+          <dl><div><dt>الأقساط الشهرية</dt><dd>${money(t.pot)}</dd></div><div><dt>رصيد الصندوق</dt><dd>${money(t.fund)}</dd></div>
+          <div><dt>الاشتراكات</dt><dd>${t.count}</dd></div><div><dt>الدور القادم</dt><dd style="font-size:15px">${next ? `${esc(next.name)}<br><span class="t-mut" style="font-weight:500">${sc.month[next.id] !== undefined ? RO.label(r, sc.month[next.id]) : ""}</span>` : "—"}</dd></div></dl>
+        </button>`; }).join("")}
+      <button class="acard" data-act="roadd" style="border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:180px">
+        <div class="ic" style="background:var(--muted);margin:0 0 12px">＋</div>
+        <h2>إضافة جمعية جديدة</h2>
+        <p style="margin:4px 0 0">جمعية مغلقة: أقساط شهرية واستلام بالدور</p>
       </button>
     </div>
     <p class="sub" style="margin-top:22px">آخر حفظ: ${DB.meta.savedAt ? new Date(DB.meta.savedAt).toLocaleString("ar-OM-u-nu-latn") : "—"} · هذا الجهاز: ${esc(DEV.name)}
@@ -779,7 +802,12 @@ function membersView(a){
 
 function settingsView(a){
   const s = DB[a].settings;
-  const extra = a === "aza" ? `
+  const extra = isRosca(a) ? `
+    <div class="row2">
+      <label class="fld"><span>شهر البداية</span><input class="inp" name="start" type="month" value="${esc(s.start)}" required></label>
+      <label class="fld"><span>المدة بالأشهر</span><input class="inp" name="months" type="number" min="1" max="120" step="1" value="${esc(s.months)}" required></label>
+    </div>
+    <p class="sub" style="margin-bottom:12px">المبلغ المستحق لكل مشترك = القسط × المدة (ما لم يُحدَّد له مبلغ آخر).</p>` : a === "aza" ? `
     <div class="row2">
       <label class="fld"><span>الاشتراك الشهري</span><input class="inp" name="monthlyFee" type="number" step="0.001" value="${esc(s.monthlyFee)}"></label>
       <label class="fld"><span>الرصيد البنكي الحالي</span><input class="inp" name="bankBalance" type="number" step="0.001" value="${esc(s.bankBalance)}"></label>
@@ -805,6 +833,9 @@ function settingsView(a){
       <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
       <p class="sub" style="margin-bottom:8px">إعادة التطبيق إلى البيانات الأصلية المستوردة من ملفات Excel (سيُحذف كل ما أُدخل بعدها).</p>
       <button class="btn danger" data-act="reset">إعادة تعيين البيانات</button>
+      ${isRosca(a) ? `<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      <p class="sub" style="margin-bottom:8px">حذف «${esc(s.title)}» نهائياً بكل مشتركيها وأقساطها (ينتقل الحذف للجهاز الآخر مع المزامنة).</p>
+      <button class="btn danger" data-act="rodelassoc">حذف هذه الجمعية</button>` : ""}
     </div></div>
   </div>`;
 }
@@ -1084,12 +1115,12 @@ function waLink(phone, text){
   return `https://wa.me/${d}?text=${encodeURIComponent(text)}`;
 }
 function receiptText(a, o){
-  const head = `${DB[a].settings.title}\n*إيصال استلام رقم ${o.no}*\nالتاريخ: ${o.date}\n`;
+  const head = `${DB[a].settings.title}\n*${o.payout ? "إيصال تسليم مبلغ الجمعية" : o.inst ? "إيصال استلام قسط شهري" : "إيصال استلام"} رقم ${o.no}*\nالتاريخ: ${o.date}\n`;
   const body = o.kind === "group"
     ? `استلمنا من: ${o.payer}\nعن أعضاء مجموعة: ${o.groupName}\nوذلك عن: ${o.forText}\n\n` +
       o.lines.map(l => `• ${l.name}: ${fmtCur(a, l.amount)}${l.detail ? ` (${l.detail})` : ""}`).join("\n") +
       `\n\n*الإجمالي: ${fmtCur(a, o.amount)}* — ${o.lines.length} أعضاء`
-    : `استلمنا من: ${o.name}\nالمبلغ: ${fmtCur(a, o.amount)}\nوذلك عن: ${o.forText}\n` + (o.extra || []).map(([l, v]) => `${l}: ${v}`).join("\n");
+    : `${o.payout ? "سُلِّم إلى" : "استلمنا من"}: ${o.name}\nالمبلغ: ${fmtCur(a, o.amount)}\nوذلك عن: ${o.forText}\n` + (o.extra || []).map(([l, v]) => `${l}: ${v}`).join("\n");
   return head + body + `\n\nشكراً لكم وجزاكم الله خيراً\nأمين الصندوق: ${treasurer(a)}`;
 }
 const DEFAULT_TREASURER = "محمد المقبالي أبو المعتز";
@@ -1108,26 +1139,28 @@ async function drawReceipt(a, o){
   const valFont = font(700, 34), labFont = font(500, 26);
   const rows = (isGroup
     ? [["استلمنا من", o.payer], ["عن أعضاء مجموعة", o.groupName], ["وذلك عن", o.forText]]
-    : [["استلمنا من", o.name], ["المجموعة", o.groupName], ["وذلك عن", o.forText], ...(o.extra || [])])
+    : [[o.payout ? "سُلِّم إلى" : "استلمنا من", o.name], ["المجموعة", o.groupName], ["وذلك عن", o.forText], ...(o.extra || [])])
+    .filter(([, v]) => v !== "" && v !== undefined && v !== null)
     .map(([l, v]) => [l, wrap(v, W - 120, valFont)]);
   const lines = isGroup ? o.lines : [];
   const lineH = l => 54 + (l.detail ? 30 : 0);
   const tableH = lines.length ? 80 + sum(lines, lineH) + 80 : 0;
-  const H = 520 + sum(rows, ([, ls]) => 50 + ls.length * 46) + tableH + 170;
+  const sign = o.payout ? 110 : 0;
+  const H = 520 + sum(rows, ([, ls]) => 50 + ls.length * 46) + tableH + sign + 170;
   c.width = W; c.height = H;
-  const accent = a === "aza" ? "#1f6f6b" : "#8a5a1c", soft = a === "aza" ? "#e3f0ee" : "#f5ecdd";
+  const [accent, soft] = accentOf(a);
   g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
   g.fillStyle = accent; g.fillRect(0, 0, W, 200);
   g.direction = "rtl";
   g.fillStyle = "#fff"; g.textAlign = "right";
   g.font = font(800, 50); g.fillText(DB[a].settings.title, W - 50, 95);
-  g.font = font(500, 30); g.fillText(isGroup ? "إيصال استلام — دفعة مجموعة" : "إيصال استلام مبلغ", W - 50, 150);
+  g.font = font(500, 30); g.fillText(isGroup ? "إيصال استلام — دفعة مجموعة" : o.payout ? "إيصال تسليم مبلغ الجمعية حسب الدور" : o.inst ? "إيصال استلام قسط شهري" : "إيصال استلام مبلغ", W - 50, 150);
   g.textAlign = "left";
   g.font = font(700, 28); g.fillText(`رقم: ${o.no}`, 50, 95);
   g.font = font(500, 26); g.fillText(`التاريخ: ${o.date}`, 50, 150);
   roundRect(g, 50, 240, W - 100, 220, 26); g.fillStyle = soft; g.fill();
   g.textAlign = "center"; g.fillStyle = "#55534e"; g.font = font(500, 30);
-  g.fillText(isGroup ? `إجمالي المبلغ المستلم — ${lines.length} أعضاء` : "المبلغ المستلم", W / 2, 300);
+  g.fillText(isGroup ? `إجمالي المبلغ المستلم — ${lines.length} أعضاء` : o.payout ? "المبلغ المسلَّم للمشترك" : o.inst ? "مبلغ القسط المستلم" : "المبلغ المستلم", W / 2, 300);
   g.fillStyle = accent; g.font = font(800, 88); g.fillText(fmtCur(a, o.amount), W / 2, 410);
   let y = 530; g.textAlign = "right";
   for (const [l, ls] of rows) {
@@ -1155,6 +1188,13 @@ async function drawReceipt(a, o){
     g.textAlign = "right"; g.fillText("الإجمالي", W - 75, y + 4);
     g.textAlign = "left"; g.fillText(fmtCur(a, o.amount), 75, y + 4);
   }
+  if (sign) {  // the subscriber signs that the money was handed over
+    const sy = H - 170 - sign + 60;
+    g.textAlign = "right"; g.fillStyle = "#55534e"; g.font = font(500, 26);
+    g.fillText("توقيع المستلم:", W - 60, sy); g.fillText("توقيع أمين الصندوق:", W / 2 - 20, sy);
+    g.strokeStyle = "#b9b6ad"; g.lineWidth = 2; g.setLineDash([6, 6]); g.beginPath();
+    g.moveTo(W - 250, sy + 6); g.lineTo(W / 2 + 30, sy + 6); g.moveTo(W / 2 - 270, sy + 6); g.lineTo(60, sy + 6); g.stroke(); g.setLineDash([]);
+  }
   g.fillStyle = accent; g.fillRect(0, H - 12, W, 12);
   g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 30); g.fillText("شكراً لكم وجزاكم الله خيراً", W / 2, H - 95);
   g.fillStyle = "#55534e"; g.font = font(500, 24); g.fillText(`أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
@@ -1165,7 +1205,7 @@ function issueReceipt(a, o){
   let rec = o.batch ? DB[a].receipts.find(r => r.batch === o.batch) : o.no ? DB[a].receipts.find(r => r.no === o.no) : null;
   if (!rec) {
     const kind = o.kind || "single", extra = {};
-    if (kind === "single") { const m = member(a, o.memberId); extra.name = m?.name || ""; extra.groupName = shortGroup(groupName(a, m?.groupId)); }
+    if (kind === "single") { const m = member(a, o.memberId); extra.name = m?.name || ""; extra.groupName = o.groupName !== undefined ? o.groupName : shortGroup(groupName(a, m?.groupId)); }
     rec = touch({ ...o, ...extra, kind, id: uid("r"), no: o.no || nextReceiptNo(), date: o.date || today() });
     DB[a].receipts.push(rec); save();
   }
@@ -1388,7 +1428,7 @@ async function drawReport(a, gname, scope, d){
   const lineH = l => 52 + l.det.length * 28;
   const H = 200 + 300 + 3 * 96 + 90 + sum(laid, lineH) + 90 + 170;
   c.width = W; c.height = H;
-  const accent = a === "aza" ? "#1f6f6b" : "#8a5a1c", soft = a === "aza" ? "#e3f0ee" : "#f5ecdd", bad = "#c23535", good = "#0c7a0c";
+  const [accent, soft] = accentOf(a), bad = "#c23535", good = "#0c7a0c";
   g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
   g.fillStyle = accent; g.fillRect(0, 0, W, 200);
   g.direction = "rtl";
@@ -1501,7 +1541,7 @@ function receiptsView(){
   <div class="card"><div class="tw"><table class="export"><thead><tr><th>رقم الإيصال</th><th>التاريخ</th><th>استلمنا من</th><th>وذلك عن</th><th class="n">المبلغ</th><th>النوع</th><th class="noprint"></th></tr></thead><tbody>
   ${list.map(r => { const name = r.kind === "group" ? r.payer : (r.name || member(a, r.memberId)?.name || "");
     return `<tr data-name="${esc(norm(name + " " + (r.groupName || "") + " " + r.no))}"><td class="num"><b>${esc(r.no)}</b></td><td class="t-mut">${esc(r.date)}</td><td class="nm">${esc(name)}</td><td>${esc(r.forText)}</td>
-      <td class="n"><b>${fmt(r.amount)}</b></td><td>${r.kind === "group" ? `<span class="pill warn">مجموعة · ${r.lines?.length || 0} أعضاء</span>` : `<span class="pill">فردي</span>`}</td>
+      <td class="n"><b>${fmt(r.amount)}</b></td><td>${r.kind === "group" ? `<span class="pill warn">مجموعة · ${r.lines?.length || 0} أعضاء</span>` : r.payout ? `<span class="pill good">تسليم دور</span>` : r.inst ? `<span class="pill">قسط شهري</span>` : `<span class="pill">فردي</span>`}</td>
       <td class="noprint"><button class="btn sm" data-act="showrec" data-id="${r.id}">🧾 عرض</button></td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">لم تصدر إيصالات بعد</td></tr>`}
   </tbody></table></div></div>`;
 }
@@ -1593,6 +1633,7 @@ function mergeDB(L, R){
       if (rt) lo.overridesTs[mid] = rt;
     }
   }
+  mergeRoscas(L, R, tombs, st);
   L.deleted = tombs;
   return st;
 }
@@ -1629,6 +1670,401 @@ function importSyncText(txt, name, size){
   modal("تمت المزامنة", `<p>تم دمج البيانات${d.syncFrom ? ` القادمة من <b>${esc(d.syncFrom)}</b>` : ""}${d.syncAt ? ` (أُرسلت ${new Date(d.syncAt).toLocaleString("ar-OM-u-nu-latn")})` : ""}.</p>
     <div class="kpis">${kpi("جديد", st.add, "", "good")}${kpi("محدَّث", st.upd)}${kpi("محذوف", st.del)}</div>
     ${st.add + st.upd + st.del ? "" : `<p class="sub">البيانات متطابقة — لا يوجد جديد.</p>`}`);
+}
+
+/* ============================================================ جمعية مغلقة (closed rotating association)
+   every subscription pays a fixed monthly instalment for N months; each month the instalments go into the fund
+   and the next subscriber in turn receives instalment × N as soon as the fund covers it (same rule as the Excel sheet) */
+const RO_TABS = [["dash", "لوحة المعلومات"], ["pay", "الأقساط الشهرية"], ["turns", "الأدوار والاستلام"], ["late", "المتأخرون"], ["members", "المشتركون"], ["receipts", "الإيصالات"], ["settings", "الإعدادات"], ["sync", "المزامنة"]];
+function isRosca(a){ return typeof a === "string" && a.startsWith("r_") && !!DB[a]; }
+function tabsOf(a){ return TABS[a] || (isRosca(a) ? RO_TABS : null); }
+function assocList(){ return ["aza", "majlis", ...(DB.roscaIds || []).filter(k => DB[k])]; }
+function accentOf(a){ return a === "aza" ? ["#1f6f6b", "#e3f0ee"] : a === "majlis" ? ["#8a5a1c", "#f5ecdd"] : ["#3d4f91", "#e7eaf6"]; }
+
+const RO = {
+  N(r){ return Math.max(1, Math.round(n(r.settings.months)) || 24); },
+  start(r){ const [y, m] = String(r.settings.start || "2026-01").split("-").map(Number); return { y: y || 2026, m: (m || 1) - 1 }; },
+  ym(r, i){ const s = RO.start(r), t = s.m + i; return { y: s.y + Math.floor(t / 12), m: ((t % 12) + 12) % 12 }; },
+  label(r, i){ const x = RO.ym(r, i); return `${MONTHS[x.m]} ${x.y}`; },
+  nowIdx(r){ const s = RO.start(r), d = new Date(); return (d.getFullYear() - s.y) * 12 + d.getMonth() - s.m; },
+  shares(r){ return r.members.filter(m => m.active !== false).slice().sort((a, b) => n(a.order) - n(b.order)); },
+  pot(r){ return sum(RO.shares(r), s => s.inst); },
+  amount(r, s){ return n(s.payout) || n(s.inst) * RO.N(r); },
+  row(r, sid){ let x = r.pay[sid]; if (!x) x = r.pay[sid] = []; while (x.length < RO.N(r)) x.push(0); return x; },
+  paid(r, sid){ return sum(RO.row(r, sid)); },
+  dueMonths(r){ return Math.max(0, Math.min(RO.N(r), RO.nowIdx(r) + 1)); },
+  due(r, s){ return RO.dueMonths(r) * n(s.inst); },
+  arrears(r, s){ return Math.max(0, RO.due(r, s) - RO.paid(r, s.id)); },
+  /* payout month per subscription: paid-out and pinned ones keep their month; the rest follow the turn order */
+  schedule(r){
+    const N = RO.N(r), shares = RO.shares(r), pot = RO.pot(r), month = {}, fixed = new Map(), rows = [];
+    for (const s of shares) {
+      const f = s.paidOut ? n(s.paidOut.month) : (s.fixedMonth === 0 || s.fixedMonth ? n(s.fixedMonth) : null);
+      if (f !== null) { fixed.set(s.id, f); month[s.id] = f; }
+    }
+    const queue = shares.filter(s => !fixed.has(s.id));
+    // a later turn never receives before a pinned earlier turn
+    const floor = new Map(); let maxFixed = -1;
+    for (const s of shares) { if (fixed.has(s.id)) maxFixed = Math.max(maxFixed, fixed.get(s.id)); else floor.set(s.id, maxFixed); }
+    let bal = 0;
+    for (let i = 0; i < N; i++) {
+      bal += pot; const out = [];
+      for (const s of shares) if (fixed.get(s.id) === i) { bal -= RO.amount(r, s); out.push(s.id); }
+      while (queue.length && i >= floor.get(queue[0].id) && bal + 1e-9 >= RO.amount(r, queue[0])) { const s = queue.shift(); bal -= RO.amount(r, s); month[s.id] = i; out.push(s.id); }
+      rows.push({ i, inflow: pot, out, bal });
+    }
+    return { month, rows, unscheduled: queue.map(s => s.id) };
+  },
+  totals(r){
+    const shares = RO.shares(r);
+    const collected = sum(r.members, s => RO.paid(r, s.id)), paidOut = sum(r.members.filter(s => s.paidOut), s => n(s.paidOut.amount));
+    return { count: shares.length, people: new Set(shares.map(s => norm(s.name).trim())).size, pot: RO.pot(r), collected, paidOut,
+      fund: collected - paidOut, arrears: sum(shares, s => RO.arrears(r, s)), done: shares.filter(s => s.paidOut).length };
+  },
+  monthsText(r, idx){
+    const parts = []; let i = 0;
+    while (i < idx.length) {
+      let j = i; while (j + 1 < idx.length && idx[j + 1] === idx[j] + 1) j++;
+      parts.push(j > i ? `${RO.label(r, idx[i])} – ${RO.label(r, idx[j])}` : RO.label(r, idx[i]));
+      i = j + 1;
+    }
+    return parts.join("، ");
+  },
+};
+function newRosca(title, start, months, currency){
+  return { settings: { title, start, months, currency: currency || "ر.ع", treasurer: "" }, settingsTs: now(),
+           members: [], pay: {}, payTs: {}, receipts: [], groups: [] };
+}
+function roStatus(r, s, sc, ni){
+  if (s.paidOut) return `<span class="pill good">صُرف ${esc(s.paidOut.date || "")}</span>`;
+  const m = sc.month[s.id];
+  if (m === undefined) return `<span class="pill bad">لا يكفي الرصيد</span>`;
+  if (m < ni) return `<span class="pill bad">متأخر الصرف</span>`;
+  if (m === ni) return `<span class="pill warn">مستحق هذا الشهر</span>`;
+  return `<span class="pill">قادم</span>`;
+}
+
+const RO_VIEWS = {
+  dash(){
+    const a = S.a, r = DB[a], t = RO.totals(r), sc = RO.schedule(r), ni = RO.nowIdx(r), N = RO.N(r);
+    const upcoming = RO.shares(r).filter(s => !s.paidOut).sort((x, y) => (sc.month[x.id] ?? 1e9) - (sc.month[y.id] ?? 1e9)).slice(0, 6);
+    return pageHead("لوحة المعلومات", `جمعية مغلقة لمدة ${N} شهراً — من ${RO.label(r, 0)} إلى ${RO.label(r, N - 1)}`) + `
+    <div class="kpis">
+      ${kpi("القسط الشهري الإجمالي", money(t.pot) + cur(), `${t.count} اشتراكاً (${t.people} مشتركاً)`, "acc")}
+      ${kpi("الشهر الحالي", ni < 0 ? "لم تبدأ" : ni >= N ? "انتهت" : `${ni + 1} من ${N}`, ni >= 0 && ni < N ? RO.label(r, ni) : "")}
+      ${kpi("المحصّل من الأقساط", money(t.collected) + cur(), `المستحق حتى الآن ${fmt(sum(RO.shares(r), s => RO.due(r, s)))}`, "good")}
+      ${kpi("صُرف للمستلمين", money(t.paidOut) + cur(), `${t.done} من ${t.count} اشتراكاً`)}
+      ${kpi("رصيد الصندوق", money(t.fund) + cur(), "المحصّل − المصروف", t.fund >= 0 ? "good" : "bad")}
+      ${kpi("المتأخرات", money(t.arrears) + cur(), "", t.arrears ? "bad" : "good")}
+    </div>
+    <div class="card"><div class="card-h"><h2>الأدوار القادمة</h2><span class="grow"></span><button class="btn sm" data-act="tab" data-tab="turns">جدول الأدوار كاملاً</button></div>
+      <div class="tw"><table><thead><tr><th class="n">الدور</th><th>المستلم</th><th class="n">المبلغ</th><th>شهر الاستلام</th><th>الحالة</th><th></th></tr></thead><tbody>
+      ${upcoming.map(s => `<tr><td class="n"><b>${s.order}</b></td><td class="nm">${esc(s.name)}</td><td class="n">${fmt(RO.amount(r, s))}</td>
+        <td>${sc.month[s.id] !== undefined ? RO.label(r, sc.month[s.id]) : "—"}</td><td>${roStatus(r, s, sc, ni)}</td>
+        <td><button class="btn sm" data-act="ropayout" data-id="${s.id}">💵 صرف</button></td></tr>`).join("") || `<tr><td colspan="6" class="empty">صُرفت كل الأدوار ✓</td></tr>`}
+      </tbody></table></div></div>`;
+  },
+
+  pay(){
+    const a = S.a, r = DB[a], N = RO.N(r), shares = RO.shares(r), ni = RO.nowIdx(r);
+    if (!shares.length) return pageHead("الأقساط الشهرية", "") + `<div class="card"><div class="empty">لا يوجد مشتركون بعد.<br><br><button class="btn pri" data-act="rosub">+ اشتراك جديد</button></div></div>`;
+    const head = Array.from({ length: N }, (_, i) => { const x = RO.ym(r, i); return `<th class="n" style="${i === ni ? "background:var(--accent-soft)" : ""}">${MONTHS[x.m]}<br><span class="t-mut" style="font-weight:500">${x.y}</span></th>`; }).join("");
+    const body = shares.map(s => {
+      const row = RO.row(r, s.id);
+      return `<tr data-name="${esc(norm(s.name))}" data-sid="${s.id}"><td class="nm"><span class="t-mut">${s.order}.</span> <a href="#" data-act="romonths" data-id="${s.id}" title="تسجيل الأقساط وإصدار إيصال">${esc(s.name)}</a> <span class="t-mut">(${fmt(s.inst)})</span></td>
+        ${row.map((v, i) => `<td class="n" style="padding:2px"><input class="cell ${n(v) ? "p" : "z"}" inputmode="decimal" value="${n(v) ? n(v) : "0"}" data-chg="rocell" data-id="${s.id}" data-i="${i}" aria-label="${esc(s.name)} ${RO.label(r, i)}"></td>`).join("")}
+        <td class="n"><b id="rrt-${s.id}">${fmt(sum(row))}</b></td><td class="n" id="rra-${s.id}">${arrearsPill(RO.arrears(r, s))}</td>
+        <td class="n noprint"><button class="btn sm" data-act="rofill" data-id="${s.id}" title="تسديد الأشهر المستحقة">✓ تسديد</button></td></tr>`;
+    }).join("");
+    const foot = `<tr class="grand"><td>المجموع</td>${Array.from({ length: N }, (_, i) => `<td class="n" id="rmt-${i}">${fmt(sum(shares, s => RO.row(r, s.id)[i]))}</td>`).join("")}
+      <td class="n" id="rgt">${fmt(sum(shares, s => RO.paid(r, s.id)))}</td><td class="n" id="rga">${fmt(sum(shares, s => RO.arrears(r, s)))}</td><td class="noprint"></td></tr>`;
+    return pageHead("الأقساط الشهرية", `اكتب القسط في خانة الشهر ويُحفظ تلقائياً، أو اضغط على الاسم لتسجيل الأشهر وإصدار إيصال. إجمالي الأقساط الشهرية ${fmtCur(a, RO.pot(r))}.`, printBtn + xlsBtn) + `
+    <div class="bar noprint">${searchBox()}<span class="grow"></span><button class="btn" data-act="roperiod" title="زيادة أو تقليل مدة الجمعية">⏱ المدة: ${N} شهراً (${RO.label(r, 0)} – ${RO.label(r, N - 1)})</button><button class="btn pri" data-act="rosub">+ اشتراك جديد</button></div>
+    <div class="card"><div class="tw"><table class="export sticky1" id="rosubs"><thead><tr><th>المشترك (القسط)</th>${head}<th class="n">المجموع</th><th class="n">المتأخر</th><th class="noprint"></th></tr></thead>
+    <tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div></div>`;
+  },
+
+  turns(){
+    const a = S.a, r = DB[a], sc = RO.schedule(r), ni = RO.nowIdx(r), shares = RO.shares(r);
+    const rows = shares.map((s, k) => {
+      const m = sc.month[s.id], pinned = !s.paidOut && (s.fixedMonth === 0 || s.fixedMonth);
+      return `<tr data-name="${esc(norm(s.name))}"><td class="n"><b>${s.order}</b></td><td class="nm">${esc(s.name)}</td><td class="n">${fmt(s.inst)}</td><td class="n"><b>${fmt(RO.amount(r, s))}</b></td>
+        <td style="white-space:nowrap">${m !== undefined ? RO.label(r, m) : "—"}${pinned ? ` <span title="شهر مثبّت يدوياً">📌</span>` : ""}</td><td>${roStatus(r, s, sc, ni)}</td>
+        <td class="noprint" style="white-space:nowrap">
+          <button class="btn sm ghost" data-act="romove" data-id="${s.id}" data-dir="-1" ${k ? "" : "disabled"} title="تقديم الدور">▲</button><button class="btn sm ghost" data-act="romove" data-id="${s.id}" data-dir="1" ${k < shares.length - 1 ? "" : "disabled"} title="تأخير الدور">▼</button>
+          ${s.paidOut ? `<button class="btn sm" data-act="ropayreceipt" data-id="${s.id}">🧾 إيصال التسليم</button><button class="btn sm ghost danger" data-act="rounpay" data-id="${s.id}">إلغاء الصرف</button>`
+                      : `<button class="btn sm ghost" data-act="rofix" data-id="${s.id}" title="تثبيت شهر الاستلام">📌</button><button class="btn sm pri" data-act="ropayout" data-id="${s.id}">💵 تسليم المبلغ</button>`}
+        </td></tr>`;
+    }).join("");
+    const names = ids => ids.map(id => { const s = member(a, id); return `${esc(s.name)} <span class="t-mut">(${fmt(RO.amount(r, s))})</span>`; }).join("<br>");
+    const flow = sc.rows.map(x => `<tr ${x.i === ni ? 'style="background:var(--accent-soft)"' : ""}><td style="white-space:nowrap">${x.i + 1}. ${RO.label(r, x.i)}</td><td class="n">${fmt(x.inflow)}</td>
+      <td>${x.out.length ? names(x.out) : `<span class="t-mut">—</span>`}</td><td class="n ${x.bal < 0 ? "t-bad" : ""}"><b>${fmt(x.bal)}</b></td></tr>`).join("");
+    const N = RO.N(r);
+    return pageHead("الأدوار والاستلام", "يُحسب شهر الاستلام تلقائياً حسب ترتيب الدور: كل شهر تُضاف الأقساط للصندوق، ويستلم صاحب الدور التالي متى ما كفى الرصيد مبلغه (القسط × عدد الأشهر). غيّر الترتيب بالأسهم، أو ثبّت شهراً بـ 📌.", printBtn + xlsBtn + `<button class="btn" data-act="roperiod">⏱ المدة: ${N} شهراً</button>`) + `
+    ${sc.unscheduled.length ? `<div class="note">لا يكفي رصيد الصندوق خلال مدة الجمعية لصرف ${sc.unscheduled.length} اشتراكاً — راجع الأقساط أو المدة.</div>` : ""}
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">الدور</th><th>المستلم</th><th class="n">القسط</th><th class="n">المبلغ المستحق</th><th>شهر الاستلام</th><th>الحالة</th><th class="noprint"></th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr class="grand"><td></td><td>المجموع</td><td class="n">${fmt(RO.pot(r))}</td><td class="n">${fmt(sum(shares, s => RO.amount(r, s)))}</td><td></td><td></td><td class="noprint"></td></tr></tfoot></table></div></div>
+    <div class="card" style="margin-top:14px"><div class="card-h"><h2>حركة الصندوق المتوقعة شهراً بشهر</h2></div>
+      <div class="tw"><table class="export"><thead><tr><th>الشهر</th><th class="n">الوارد</th><th>يستلم في هذا الشهر</th><th class="n">الرصيد بعد الصرف</th></tr></thead><tbody>${flow}</tbody></table></div></div>`;
+  },
+
+  late(){
+    const a = S.a, r = DB[a], dm = RO.dueMonths(r);
+    const rows = RO.shares(r).map(s => ({ s, arr: RO.arrears(r, s), miss: RO.row(r, s.id).slice(0, dm).map((v, i) => n(v) < n(s.inst) ? i : -1).filter(i => i >= 0) })).filter(x => x.arr > 0);
+    return pageHead("المتأخرون عن السداد", dm ? `الأقساط المستحقة حتى ${RO.label(r, dm - 1)}` : "لم تبدأ الجمعية بعد", printBtn + xlsBtn) + `
+    <div class="bar noprint">${searchBox()}</div>
+    <div class="kpis">${kpi("عدد المتأخرين", rows.length, "", "acc")}${kpi("إجمالي المتأخرات", money(sum(rows, x => x.arr)) + cur(), "", "bad")}</div>
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">الدور</th><th>المشترك</th><th class="n">القسط</th><th class="n">المدفوع</th><th class="n">المتأخر</th><th>الأشهر غير المسددة</th><th class="noprint"></th></tr></thead><tbody>
+    ${rows.map(x => `<tr data-name="${esc(norm(x.s.name))}"><td class="n">${x.s.order}</td><td class="nm">${esc(x.s.name)}</td><td class="n">${fmt(x.s.inst)}</td><td class="n">${fmt(RO.paid(r, x.s.id))}</td>
+      <td class="n t-bad"><b>${fmt(x.arr)}</b></td><td>${RO.monthsText(r, x.miss)}</td><td class="noprint"><button class="btn sm" data-act="romonths" data-id="${x.s.id}">تسجيل</button></td></tr>`).join("") || `<tr><td colspan="7" class="empty">لا يوجد متأخرون 🎉</td></tr>`}
+    </tbody></table></div></div>`;
+  },
+
+  members(){
+    const a = S.a, r = DB[a], all = r.members.slice().sort((x, y) => n(x.order) - n(y.order)).filter(s => S.showOff || s.active !== false);
+    return pageHead("المشتركون", "يمكن للشخص الاشتراك أكثر من مرة — كل اشتراك له قسطه ودوره في الاستلام.", printBtn + xlsBtn + `<button class="btn pri" data-act="rosub">+ اشتراك جديد</button>`) + `
+    <div class="bar noprint">${searchBox()}<label class="fld chk" style="margin:0"><input type="checkbox" data-chg="showoff" ${S.showOff ? "checked" : ""}><span>إظهار الملغاة</span></label></div>
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">الدور</th><th>الاسم</th><th>الهاتف</th><th class="n">القسط الشهري</th><th class="n">المبلغ المستحق</th><th class="n">المدفوع</th><th class="n">المتأخر</th><th class="noprint"></th></tr></thead><tbody>
+    ${all.map(s => `<tr data-name="${esc(norm(s.name))}" class="${s.active === false ? "off" : ""}"><td class="n">${s.order}</td><td class="nm">${esc(s.name)}${s.active === false ? ` <span class="pill">ملغى</span>` : ""}${s.note ? `<br><span class="t-mut">${esc(s.note)}</span>` : ""}</td>
+      <td class="num">${esc(s.phone)}</td><td class="n">${fmt(s.inst)}</td><td class="n">${fmt(RO.amount(r, s))}</td><td class="n">${fmt(RO.paid(r, s.id))}</td>
+      <td class="n">${RO.arrears(r, s) ? `<span class="t-bad">${fmt(RO.arrears(r, s))}</span>` : "0"}</td>
+      <td class="noprint" style="white-space:nowrap"><button class="btn sm ghost" data-act="rosub" data-id="${s.id}">تعديل</button><button class="btn sm ghost danger" data-act="rodel" data-id="${s.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="8" class="empty">لا يوجد مشتركون</td></tr>`}
+    </tbody><tfoot><tr class="grand"><td></td><td>المجموع</td><td></td><td class="n">${fmt(RO.pot(r))}</td><td class="n">${fmt(sum(RO.shares(r), s => RO.amount(r, s)))}</td><td class="n">${fmt(sum(r.members, s => RO.paid(r, s.id)))}</td><td class="n">${fmt(sum(RO.shares(r), s => RO.arrears(r, s)))}</td><td class="noprint"></td></tr></tfoot></table></div></div>`;
+  },
+
+  settings(){ return settingsView(S.a); },
+};
+
+/* change the association's period (start month / number of months) and preview the effect first */
+function roPeriodForm(){
+  const a = S.a, r = DB[a], N0 = RO.N(r);
+  const f = modal("مدة الجمعية", `
+    <div class="row2">
+      ${fld("شهر البداية", "start", r.settings.start, "month", "required")}
+      <label class="fld"><span>المدة بالأشهر</span>
+        <div style="display:flex;gap:6px"><button type="button" class="btn" data-step="-1" aria-label="إنقاص شهر">−</button>
+        <input class="inp" name="months" type="number" min="1" max="120" step="1" value="${N0}" required style="text-align:center;flex:1">
+        <button type="button" class="btn" data-step="1" aria-label="زيادة شهر">+</button></div></label>
+    </div>
+    <div id="rp-prev" class="muted-box"></div>`,
+  { onSave: v => {
+      const N = Math.round(n(v.months)), start = v.start;
+      if (N < 1) { toast("المدة يجب أن تكون شهراً على الأقل"); return false; }
+      const blockers = roPeriodBlockers(r, N);
+      if (blockers.length) { toast("لا يمكن التقصير: " + blockers[0]); return false; }
+      if (start !== r.settings.start && sum(r.members, s => RO.paid(r, s.id)) &&
+          !confirm("تغيير شهر البداية يغيّر أسماء الأشهر للأقساط المسجلة (القسط الأول يبقى في الشهر الأول). متابعة؟")) return false;
+      for (const s of r.members) {
+        const row = r.pay[s.id];
+        if (row && row.length > N) { row.length = N; r.payTs[s.id] = now(); }
+      }
+      r.settings.months = N; r.settings.start = start; r.settingsTs = now();
+      toast(`المدة الآن ${N} شهراً — من ${RO.label(r, 0)} إلى ${RO.label(r, N - 1)}`);
+  }});
+  const inp = f.querySelector("[name=months]"), st = f.querySelector("[name=start]");
+  const preview = () => {
+    const N = Math.max(1, Math.round(n(inp.value))), tmp = { ...r, settings: { ...r.settings, months: N, start: st.value || r.settings.start } };
+    const sc = RO.schedule(tmp), end = sc.rows.at(-1)?.bal ?? 0, insts = [...new Set(RO.shares(r).map(s => n(s.inst)))].sort((x, y) => x - y);
+    const blockers = roPeriodBlockers(r, N);
+    f.querySelector("#rp-prev").innerHTML = `
+      <b>من ${RO.label(tmp, 0)} إلى ${RO.label(tmp, N - 1)}</b> — ${N} شهراً ${N !== N0 ? `<span class="pill ${N > N0 ? "good" : "warn"}">${N > N0 ? "+" : ""}${N - N0} شهر</span>` : ""}<br>
+      المبلغ المستحق عند الاستلام: ${insts.map(x => `قسط ${fmt(x)} ← <b>${fmt(x * N)}</b>`).join(" · ")}<br>
+      إجمالي ما يُجمع: ${fmtCur(a, RO.pot(r) * N)} · رصيد الصندوق في النهاية: <b class="${Math.abs(end) > 0.001 ? "t-bad" : "t-good"}">${fmt(end)}</b>
+      ${sc.unscheduled.length ? `<br><span class="t-bad">لا يكفي الرصيد لتسليم ${sc.unscheduled.length} اشتراكاً خلال المدة.</span>` : ""}
+      ${blockers.length ? `<br><span class="t-bad">لا يمكن التقصير إلى ${N} شهراً: ${blockers.join("، ")}</span>` : ""}`;
+  };
+  f.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { inp.value = Math.max(1, Math.round(n(inp.value)) + +b.dataset.step); preview(); });
+  inp.addEventListener("input", preview); st.addEventListener("input", preview);
+  preview();
+}
+/* reasons the period cannot shrink to N months: recorded instalments, payouts or pinned months beyond it */
+function roPeriodBlockers(r, N){
+  const out = [];
+  const paidAfter = r.members.filter(s => (r.pay[s.id] || []).slice(N).some(v => n(v)));
+  if (paidAfter.length) out.push(`توجد أقساط مسجلة بعد الشهر ${N} (${paidAfter.map(s => s.name).slice(0, 3).join("، ")})`);
+  const outM = r.members.filter(s => (s.paidOut && n(s.paidOut.month) >= N) || ((s.fixedMonth === 0 || s.fixedMonth) && n(s.fixedMonth) >= N && !s.paidOut));
+  if (outM.length) out.push(`شهر استلام بعد الشهر ${N} (${outM.map(s => s.name).slice(0, 3).join("، ")})`);
+  return out;
+}
+function roSubForm(id){
+  const a = S.a, r = DB[a], s = id ? member(a, id) : null;
+  const names = [...new Set(r.members.map(m => m.name))];
+  modal(s ? "تعديل اشتراك" : "اشتراك جديد", `
+    <label class="fld"><span>الاسم</span><input class="inp" name="name" list="ro-names" value="${esc(s?.name)}" required placeholder="اختر اسماً موجوداً لاشتراك إضافي، أو اكتب اسماً جديداً"></label>
+    <datalist id="ro-names">${names.map(x => `<option value="${esc(x)}">`).join("")}</datalist>
+    <div class="row2">${fld("القسط الشهري", "inst", s?.inst ?? "", "number", "required min=0")}${fld("رقم الهاتف", "phone", s?.phone, "tel")}</div>
+    <div class="row2">${fld(`المبلغ المستحق عند الاستلام (فارغ = القسط × ${RO.N(r)})`, "payout", s?.payout || "", "number", "min=0")}${fld("ملاحظات", "note", s?.note)}</div>
+    ${s ? `<label class="fld chk"><input type="checkbox" name="active" ${s.active === false ? "" : "checked"}><span>اشتراك فعّال</span></label>` : `<p class="sub">يُضاف في آخر الأدوار، ويمكن تغيير ترتيبه من «الأدوار والاستلام».</p>`}`,
+  { onSave: v => {
+      const rec = { name: v.name.trim(), inst: n(v.inst), phone: v.phone, payout: n(v.payout), note: v.note };
+      if (s) { touch(Object.assign(s, rec, { active: v.active })); }
+      else {
+        const order = Math.max(0, ...r.members.map(m => n(m.order))) + 1;
+        const ns = touch({ id: uid(a + "_s"), order, active: true, ...rec });
+        r.members.push(ns); r.pay[ns.id] = Array(RO.N(r)).fill(0); r.payTs[ns.id] = now();
+      }
+      toast("تم الحفظ");
+  }});
+}
+function roMonths(sid){
+  const a = S.a, r = DB[a], s = member(a, sid), row = RO.row(r, sid), before = row.slice(), N = RO.N(r);
+  const f = modal(`${s.name} — الأقساط`, `
+    <p class="sub" style="margin-bottom:10px">الدور ${s.order} · القسط ${fmtCur(a, s.inst)} · المتأخر ${fmtCur(a, RO.arrears(r, s))}</p>
+    <div class="mgrid">${row.map((v, i) => `<label class="mcell ${n(v) ? "paid" : ""}"><span>${RO.label(r, i)}</span><input class="inp" name="m${i}" type="number" step="0.001" min="0" inputmode="decimal" value="${n(v) ? n(v) : ""}" placeholder="0"></label>`).join("")}</div>
+    <div class="bar" style="margin-top:12px"><button type="button" class="btn" data-fill="due">✓ تسديد الأشهر المستحقة</button><button type="button" class="btn" data-fill="next">✓ الشهر التالي</button></div>`,
+  { wide: true, altLabel: "حفظ وإصدار إيصال", onSave: v => {
+      for (let i = 0; i < N; i++) row[i] = n(v["m" + i]);
+      r.payTs[sid] = now();
+      const idx = []; let amount = 0;
+      for (let i = 0; i < N; i++) if (row[i] > n(before[i])) { idx.push(i); amount += row[i] - n(before[i]); }
+      toast("تم الحفظ");
+      if (v.__alt) return () => {
+        const use = idx.length ? idx : row.map((x, i) => n(x) ? i : -1).filter(i => i >= 0);
+        if (!use.length) return toast("لا توجد أقساط مسددة لإصدار إيصال");
+        roInstReceipt(sid, use, idx.length ? amount : RO.paid(r, sid));
+      };
+  }});
+  const inputs = [...f.querySelectorAll(".mcell input")];
+  f.querySelector("[data-fill=due]").onclick = () => inputs.forEach((inp, i) => { if (i < (RO.dueMonths(r) || 1) && !n(inp.value)) { inp.value = s.inst; inp.parentElement.classList.add("paid"); } });
+  f.querySelector("[data-fill=next]").onclick = () => { const inp = inputs.find(x => !n(x.value)); if (inp) { inp.value = s.inst; inp.parentElement.classList.add("paid"); } };
+  f.addEventListener("input", e => { if (e.target.matches(".mcell input")) e.target.parentElement.classList.toggle("paid", n(e.target.value) > 0); });
+}
+function roInstReceipt(sid, idx, amount){
+  const a = S.a, r = DB[a], s = member(a, sid), sc = RO.schedule(r), m = sc.month[sid];
+  issueReceipt(a, { inst: true, memberId: sid, amount, groupName: "", forText: `القسط الشهري — ${RO.monthsText(r, idx)}`,
+    extra: [["القسط الشهري", fmtCur(a, s.inst)], ["إجمالي ما دفعه", fmtCur(a, RO.paid(r, sid))], ["المتأخر عليه", RO.arrears(r, s) ? fmtCur(a, RO.arrears(r, s)) : "لا يوجد ✓"],
+            ["دوره في الاستلام", s.paidOut ? `استلم في ${s.paidOut.date}` : m !== undefined ? `الدور ${s.order} — ${RO.label(r, m)}` : `الدور ${s.order}`]] });
+}
+function roPayoutForm(sid){
+  const a = S.a, r = DB[a], s = member(a, sid), sc = RO.schedule(r), ni = RO.nowIdx(r), N = RO.N(r), t = RO.totals(r), amt = RO.amount(r, s);
+  const defM = Math.max(0, Math.min(N - 1, sc.month[sid] ?? ni));
+  modal(`تسليم مبلغ الجمعية حسب الدور — ${s.name}`, `
+    ${t.fund < amt ? `<div class="note">رصيد الصندوق الفعلي (${fmtCur(a, t.fund)}) أقل من المبلغ — تأكد من تسجيل الأقساط المستلمة.</div>` : ""}
+    <div class="row2">${fld("المبلغ المصروف", "amount", amt, "number", "required min=0")}${fld("تاريخ الصرف", "date", today(), "date")}</div>
+    <div class="row2"><label class="fld"><span>عن شهر</span><select class="inp" name="month">${Array.from({ length: N }, (_, i) => `<option value="${i}" ${i === defM ? "selected" : ""}>${RO.label(r, i)}</option>`).join("")}</select></label>${fld("ملاحظة", "note", "")}</div>`,
+  { altLabel: "تسليم وإصدار إيصال", saveLabel: "تسليم فقط", onSave: v => {
+      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
+      s.paidOut = { amount: n(v.amount), date: v.date, month: +v.month, note: v.note }; touch(s);
+      toast(`تم صرف ${fmt(v.amount)} لـ ${s.name}`);
+      if (v.__alt) return () => roPayoutReceipt(sid);
+  }});
+}
+function roPayoutReceipt(sid){
+  const a = S.a, r = DB[a], s = member(a, sid), p = s.paidOut; if (!p) return;
+  if (!p.receiptNo) { p.receiptNo = nextReceiptNo(); touch(s); save(); }
+  const left = Math.max(0, n(s.inst) * RO.N(r) - RO.paid(r, sid));
+  issueReceipt(a, { no: p.receiptNo, payout: true, date: p.date || today(), memberId: sid, amount: p.amount, groupName: "",
+    forText: `مبلغ الجمعية حسب الدور ${s.order} — ${RO.label(r, p.month)}${p.note ? " — " + p.note : ""}`,
+    extra: [["القسط الشهري", fmtCur(a, s.inst)], ["ما دفعه حتى الآن", fmtCur(a, RO.paid(r, sid))], ["الأقساط المتبقية عليه", left ? fmtCur(a, left) : "لا يوجد ✓"]] });
+}
+function addAssocForm(){
+  const d = new Date(), ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  modal("إضافة جمعية جديدة", `
+    ${fld("اسم الجمعية", "title", "", "text", 'required placeholder="مثال: جمعية الأصدقاء"')}
+    <label class="fld"><span>نوع الجمعية</span><select class="inp" name="type"><option value="rosca">جمعية مغلقة — أقساط شهرية واستلام بالدور</option></select></label>
+    <div class="row2">${fld("شهر البداية", "start", ym, "month", "required")}${fld("المدة بالأشهر", "months", 24, "number", "required min=1 max=120 step=1")}</div>
+    ${fld("العملة", "currency", "ر.ع")}
+    <p class="sub">بعد الإنشاء أضف المشتركين وأقساطهم من «المشتركون».</p>`,
+  { onSave: v => {
+      const key = "r_" + Date.now().toString(36);
+      DB[key] = newRosca(v.title.trim(), v.start, Math.round(n(v.months)), v.currency);
+      DB.roscaIds.push(key);
+      S.a = key; S.tab = "members";
+      toast(`تمت إضافة «${v.title.trim()}»`);
+  }});
+}
+
+const RO_ACT = {
+  rosub(d){ roSubForm(d.id); },
+  roperiod(){ roPeriodForm(); },
+  romonths(d, el, e){ e?.preventDefault(); roMonths(d.id); },
+  rofill(d){
+    const r = DB[S.a], s = member(S.a, d.id), row = RO.row(r, d.id), k = RO.dueMonths(r) || 1;
+    for (let i = 0; i < k; i++) if (!n(row[i])) row[i] = n(s.inst);
+    r.payTs[d.id] = now(); save(); render(); toast("تم تسديد الأشهر المستحقة — اضغط على الاسم لإصدار إيصال");
+  },
+  romove(d){
+    const r = DB[S.a], list = RO.shares(r), i = list.findIndex(s => s.id === d.id), j = i + +d.dir;
+    if (j < 0 || j >= list.length) return;
+    const x = list[i], y = list[j]; [x.order, y.order] = [y.order, x.order]; touch(x); touch(y); save(); render();
+  },
+  rofix(d){
+    const r = DB[S.a], s = member(S.a, d.id), N = RO.N(r), cur = s.fixedMonth === 0 || s.fixedMonth ? +s.fixedMonth : "";
+    modal(`تثبيت شهر الاستلام — ${s.name}`, `<label class="fld"><span>شهر الاستلام</span><select class="inp" name="m"><option value="">تلقائي حسب الدور والرصيد</option>
+      ${Array.from({ length: N }, (_, i) => `<option value="${i}" ${i === cur ? "selected" : ""}>${RO.label(r, i)}</option>`).join("")}</select></label>`,
+    { onSave: v => { s.fixedMonth = v.m === "" ? null : +v.m; touch(s); } });
+  },
+  ropayout(d){ roPayoutForm(d.id); },
+  ropayreceipt(d){ roPayoutReceipt(d.id); },
+  rounpay(d){
+    const s = member(S.a, d.id);
+    if (!confirm(`إلغاء تسجيل صرف ${fmt(s.paidOut.amount)} لـ ${s.name}؟`)) return;
+    s.paidOut = null; touch(s); save(); render();
+  },
+  rodel(d){
+    const a = S.a, r = DB[a], s = member(a, d.id);
+    if (RO.paid(r, s.id) || s.paidOut) {
+      if (confirm(`${s.name} لديه أقساط أو صرف مسجّل ولا يمكن حذفه حفاظاً على السجلات.\nهل تريد إلغاء الاشتراك (يبقى في السجل ولا يدخل في الحسابات)؟`)) { s.active = false; touch(s); save(); render(); }
+      return;
+    }
+    if (!confirm(`حذف اشتراك ${s.name} نهائياً؟`)) return;
+    r.members = r.members.filter(x => x.id !== s.id); delete r.pay[s.id]; delete r.payTs[s.id];
+    tomb(`${a}:members:${s.id}`); tomb(`${a}:row:${s.id}`); save(); render();
+  },
+  roadd(){ addAssocForm(); },
+  rodelassoc(){
+    const a = S.a, t = DB[a].settings.title;
+    if (!confirm(`حذف «${t}» بكل مشتركيها وأقساطها نهائياً؟`)) return;
+    if (prompt(`للتأكيد اكتب اسم الجمعية: ${t}`)?.trim() !== t) return toast("لم يتم الحذف");
+    delete DB[a]; DB.roscaIds = DB.roscaIds.filter(k => k !== a); tomb(`assoc:${a}`);
+    S.a = null; save(); render(); toast("تم حذف الجمعية");
+  },
+};
+const RO_CHG = {
+  rocell(el){
+    const a = S.a, r = DB[a], { id, i } = el.dataset, v = n(el.value);
+    if (v < 0) { el.value = "0"; return; }
+    RO.row(r, id)[+i] = v; r.payTs[id] = now(); save();
+    el.value = v ? v : "0"; el.className = "cell " + (v ? "p" : "z");
+    const s = member(a, id), shares = RO.shares(r);
+    document.getElementById("rrt-" + id).textContent = fmt(RO.paid(r, id));
+    document.getElementById("rra-" + id).innerHTML = arrearsPill(RO.arrears(r, s));
+    document.getElementById("rmt-" + i).textContent = fmt(sum(shares, x => RO.row(r, x.id)[+i]));
+    document.getElementById("rgt").textContent = fmt(sum(shares, x => RO.paid(r, x.id)));
+    document.getElementById("rga").textContent = fmt(sum(shares, x => RO.arrears(r, x)));
+  },
+};
+
+/* sync for closed associations: whole association, subscriptions, receipts and instalment rows */
+function mergeRoscas(L, R, tombs, st){
+  const dead = (key, u) => { const t = tombs[key]; return t !== undefined && t >= (u || 0); };
+  L.roscaIds = L.roscaIds || [];
+  for (const key of R.roscaIds || []) {
+    if (!R[key] || dead(`assoc:${key}`, 0)) continue;
+    const r = R[key];
+    if (!L[key]) { L[key] = r; if (!L.roscaIds.includes(key)) L.roscaIds.push(key); st.add++; continue; }
+    const l = L[key];
+    if ((r.settingsTs || 0) > (l.settingsTs || 0)) { l.settings = r.settings; l.settingsTs = r.settingsTs; st.upd++; }
+    for (const name of ["members", "receipts"]) {
+      const arr = l[name] = l[name] || [];
+      const idx = new Map(arr.map((x, i) => [x.id, i]));
+      for (const item of r[name] || []) {
+        if (dead(`${key}:${name}:${item.id}`, item.u)) continue;
+        if (!idx.has(item.id)) { idx.set(item.id, arr.length); arr.push(item); st.add++; }
+        else if ((item.u || 0) > (arr[idx.get(item.id)].u || 0)) { arr[idx.get(item.id)] = item; st.upd++; }
+      }
+      const kept = arr.filter(x => !dead(`${key}:${name}:${x.id}`, x.u)); st.del += arr.length - kept.length; l[name] = kept;
+    }
+    l.pay = l.pay || {}; l.payTs = l.payTs || {};
+    for (const [sid, row] of Object.entries(r.pay || {})) {
+      const rt = (r.payTs || {})[sid] || 0;
+      if (dead(`${key}:row:${sid}`, rt)) continue;
+      if (!l.pay[sid]) { l.pay[sid] = row; if (rt) l.payTs[sid] = rt; st.add++; }
+      else if (rt > (l.payTs[sid] || 0)) { l.pay[sid] = row; l.payTs[sid] = rt; st.upd++; }
+    }
+    for (const sid of Object.keys(l.pay)) if (dead(`${key}:row:${sid}`, l.payTs[sid])) { delete l.pay[sid]; delete l.payTs[sid]; st.del++; }
+  }
+  for (const key of [...L.roscaIds]) if (dead(`assoc:${key}`, 0)) { delete L[key]; L.roscaIds = L.roscaIds.filter(k => k !== key); st.del++; }
 }
 
 /* ============================================================ actions */
@@ -1769,6 +2205,8 @@ const CHG = {
   },
 };
 
+Object.assign(ACT, RO_ACT); Object.assign(CHG, RO_CHG);
+
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
@@ -1800,7 +2238,7 @@ document.addEventListener("submit", e => {
   const v = Object.fromEntries(new FormData(f));
   if (f.dataset.form === "settings") {
     const s = DB[S.a].settings;
-    Object.entries(v).forEach(([k, val]) => s[k] = ["monthlyFee","bankBalance","contractTotal"].includes(k) ? n(val) : val);
+    Object.entries(v).forEach(([k, val]) => s[k] = ["monthlyFee","bankBalance","contractTotal","months"].includes(k) ? n(val) : val);
     DB[S.a].settingsTs = now();
     save(); render(); toast("تم حفظ الإعدادات");
   }
@@ -1898,7 +2336,7 @@ function toast(msg){
 save(); // persist any one-time data fixes applied by migrate()
 {
   const [a, tab] = location.hash.slice(1).split("/");
-  if (TABS[a]) { S.a = a; S.tab = TABS[a].some(t => t[0] === tab) ? tab : "dash"; }
+  if (DB[a] && tabsOf(a)) { S.a = a; S.tab = tabsOf(a).some(t => t[0] === tab) ? tab : "dash"; }
 }
 render();
 /* a sync file shared from WhatsApp straight to the installed app arrives here via the service worker */
