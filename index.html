@@ -447,7 +447,7 @@ function homeView(){
       <h2>نقل البيانات من الكمبيوتر</h2>
       <ol class="steps">
         <li>على الكمبيوتر: افتح التطبيق ← <b>⇅ مزامنة</b> ← <b>إرسال البيانات</b>، وأرسل الملف لنفسك (واتساب أو البريد).</li>
-        <li>على هذا الجهاز: احفظ الملف، ثم اضغط الزر بالأسفل واختره.</li>
+        <li>على هذا الجهاز: في محادثة واتساب اضغط مطوّلاً على الملف ← <b>مشاركة</b> ← اختر <b>«الجمعيات»</b> فيُدمج تلقائياً.<br><span class="t-mut">أو احفظ الملف (مثلاً في Google Drive) ثم اضغط الزر بالأسفل واختره.</span></li>
       </ol>
       <button class="btn pri" data-act="syncimport">⬇ استلام ملف المزامنة</button>
       <button class="btn" data-act="open" data-a="aza">البدء بدون بيانات</button>
@@ -1530,7 +1530,7 @@ function syncView(){
     <div class="card"><div class="card-h"><h2>طريقة الاستخدام</h2></div><div class="card-b"><ol class="steps">
       <li>بعد إدخال بيانات على الجوال: اضغط <b>إرسال البيانات</b> واختر واتساب وأرسله لنفسك.</li>
       <li>على الكمبيوتر: نزّل الملف من واتساب ويب، ثم <b>استلام ودمج</b> واختر الملف.</li>
-      <li>وبالعكس من الكمبيوتر إلى الجوال (على الآيفون: احفظ الملف في «الملفات» أولاً).</li>
+      <li>من الكمبيوتر إلى الجوال: أرسل الملف لنفسك، ثم في واتساب على الجوال اضغط مطوّلاً على الملف ← <b>مشاركة</b> ← <b>«الجمعيات»</b> (يتطلب أن يكون التطبيق مثبتاً على الشاشة الرئيسية). على الآيفون: احفظ الملف في «الملفات» ثم <b>استلام ودمج</b>.</li>
       <li>إذا عدّلت على الجهازين قبل المزامنة فلا مشكلة: تُجمع التعديلات، وعند تعديل نفس السجل على الجهازين يُعتمد الأحدث.</li>
     </ol></div></div>
     <div class="card"><div class="card-h"><h2>هذا الجهاز</h2></div><div class="card-b">
@@ -1616,8 +1616,12 @@ function pickFile(accept){
 async function importSync(){
   const file = await pickFile(IS_MOBILE ? "" : ".json,application/json");
   if (!file) return;
-  let d = null; try { d = migrate(JSON.parse(await file.text())); } catch (e) {}
-  if (!d) return modal("هذا ليس ملف مزامنة", `<p>الملف الذي اخترته «${esc(file.name)}» (${fmt(file.size / 1024)} كيلوبايت) ليس ملف مزامنة.</p><p>اختر الملف الذي يبدأ اسمه بـ <b>«مزامنة الجمعيات»</b> — حجمه عادةً أكثر من 100 كيلوبايت. إذا استلمته على واتساب تجده غالباً في مجلد <b>WhatsApp ← Documents</b> أو «التنزيلات».</p>`);
+  importSyncText(await file.text(), file.name, file.size);
+}
+const HOW_TO_SHARE = `<b>أسهل طريقة على الجوال:</b> في محادثة واتساب اضغط مطوّلاً على ملف المزامنة ← <b>مشاركة</b> ← اختر تطبيق <b>«الجمعيات»</b>، فيُدمج تلقائياً.`;
+function importSyncText(txt, name, size){
+  let d = null; try { d = migrate(JSON.parse(txt)); } catch (e) {}
+  if (!d) return modal("هذا ليس ملف مزامنة", `<p>الملف «${esc(name)}» (${fmt(size / 1024)} كيلوبايت) ليس ملف مزامنة.</p><p>اختر الملف الذي يبدأ اسمه بـ <b>«مزامنة الجمعيات»</b> — حجمه عادةً أكثر من 100 كيلوبايت.</p><p>${HOW_TO_SHARE}</p>`);
   try { localStorage.setItem(SNAP_KEY, JSON.stringify(DB)); } catch (e) {}
   const st = mergeDB(DB, d);
   DEV.lastImport = new Date().toISOString(); DEV.lastImportFrom = d.syncFrom || ""; saveDev();
@@ -1897,6 +1901,19 @@ save(); // persist any one-time data fixes applied by migrate()
   if (TABS[a]) { S.a = a; S.tab = TABS[a].some(t => t[0] === tab) ? tab : "dash"; }
 }
 render();
+/* a sync file shared from WhatsApp straight to the installed app arrives here via the service worker */
+if (/[?&]shared=1/.test(location.search) && "caches" in window) (async () => {
+  history.replaceState(null, "", location.pathname + location.hash);
+  const key = new URL("shared-file", location.href.split(/[?#]/)[0]).href;
+  try {
+    const c = await caches.open("ahliya-share"), res = await c.match(key);
+    if (!res) return toast("لم يصل الملف — حاول المشاركة مرة أخرى");
+    const name = decodeURIComponent(res.headers.get("x-name") || ""), txt = await res.text();
+    await c.delete(key);
+    S.a = S.a || "aza"; S.tab = "sync"; render();
+    importSyncText(txt, name, txt.length);
+  } catch (e) { toast("تعذّر قراءة الملف المُشارَك"); }
+})();
 /* installed phone app: work offline and ask the browser not to evict our data */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
 try { navigator.storage?.persist?.(); } catch (e) {}
