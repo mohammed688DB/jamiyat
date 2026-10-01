@@ -1,0 +1,1905 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الجمعيات الأهلية</title>
+<meta name="theme-color" content="#1f6f6b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الجمعيات">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --page:#f5f4f0; --surface:#ffffff; --surface-2:#f9f8f5; --line:#e4e2dc; --line-2:#d3d0c7;
+  --ink:#1b1b19; --ink-2:#55534e; --muted:#8a877f;
+  --aza:#1f6f6b; --aza-soft:#e3f0ee; --majlis:#8a5a1c; --majlis-soft:#f5ecdd;
+  --accent:var(--aza); --accent-soft:var(--aza-soft);
+  --s1:#2a78d6; --s2:#eb6834;
+  --good:#0c7a0c; --good-soft:#e6f4e6; --bad:#c23535; --bad-soft:#fbe9e9; --warn:#a86b00; --warn-soft:#fdf3dc;
+  --r:10px; --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 10px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--ink);font-family:Tajawal,"Segoe UI",Tahoma,Arial,sans-serif;font-size:15px;line-height:1.55}
+body.aza{--accent:var(--aza);--accent-soft:var(--aza-soft)}
+body.majlis{--accent:var(--majlis);--accent-soft:var(--majlis-soft)}
+button,input,select,textarea{font:inherit;color:inherit}
+.num,td.n,th.n{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:plaintext}
+a{color:var(--accent)}
+
+/* header */
+.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.top-in{max-width:1400px;margin:auto;display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;cursor:pointer;background:none;border:0;padding:0}
+.brand .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:17px}
+.brand small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+.switch{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-inline-start:auto}
+.switch button{border:0;background:none;padding:6px 14px;border-radius:7px;cursor:pointer;font-weight:700;color:var(--ink-2)}
+.switch button.on{background:var(--accent);color:#fff}
+.tabs{max-width:1400px;margin:auto;display:flex;gap:2px;padding:0 12px;overflow-x:auto;scrollbar-width:thin}
+.tabs button{border:0;background:none;padding:10px 14px;cursor:pointer;color:var(--ink-2);font-weight:600;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button:hover{color:var(--ink)}
+
+main{max-width:1400px;margin:auto;padding:18px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:17px;margin:0}
+.sub{color:var(--muted);font-size:13px;margin:0}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.bar .grow{flex:1}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.card-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-b{padding:14px 16px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow)}
+.kpi .l{color:var(--ink-2);font-size:13px}
+.kpi .v{font-size:24px;font-weight:800;margin-top:2px}
+.kpi .v small{font-size:13px;font-weight:500;color:var(--muted);margin-inline-start:4px}
+.kpi .h{font-size:12px;color:var(--muted)}
+.kpi.good .v{color:var(--good)} .kpi.bad .v{color:var(--bad)} .kpi.acc{border-top:3px solid var(--accent)}
+
+/* buttons & inputs */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--surface);padding:7px 13px;border-radius:8px;cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:3px 9px;font-size:13px;border-radius:6px}
+.btn.danger{color:var(--bad)}
+.btn.ghost{border-color:transparent;background:none}
+.inp,select.inp{border:1px solid var(--line-2);background:var(--surface);border-radius:8px;padding:7px 10px;min-width:0}
+.inp:focus,.cell:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.search{min-width:220px}
+
+/* tables */
+.tw{overflow:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--surface)}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle}
+th{background:var(--surface-2);font-size:13px;color:var(--ink-2);font-weight:700;position:sticky;top:0;z-index:1;white-space:nowrap}
+td.n,th.n{text-align:center}
+tr.grp td{background:var(--accent-soft);font-weight:800;color:var(--accent)}
+tr.tot td{background:var(--surface-2);font-weight:800}
+tr.grand td{background:var(--accent);color:#fff;font-weight:800}
+tr.off td{color:var(--muted)}
+tbody tr:hover td{background:#fafaf7}
+tr.grp:hover td{background:var(--accent-soft)}
+tr.grand:hover td{background:var(--accent)}
+.nm{white-space:nowrap;font-weight:600}
+.cell{width:46px;border:1px solid transparent;background:transparent;text-align:center;padding:4px 2px;border-radius:5px;direction:ltr}
+.cell:hover{border-color:var(--line-2)}
+.cell.z{color:#c9c6bd}
+.cell.p{background:var(--good-soft);color:var(--good);font-weight:700}
+.pill{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.pill.good{background:var(--good-soft);color:var(--good);border-color:transparent}
+.pill.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.pill.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.t-good{color:var(--good);font-weight:700} .t-bad{color:var(--bad);font-weight:700} .t-mut{color:var(--muted)}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+
+/* progress */
+.prog{height:8px;background:var(--surface-2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:99px}
+
+/* chart */
+.chart{position:relative;padding:8px 0 0}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--ink-2);margin-bottom:8px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:6px;vertical-align:-1px;background:var(--c)}
+.plot{display:flex;align-items:flex-end;gap:10px;height:210px;border-bottom:1px solid var(--line-2);padding:0 4px;direction:ltr}
+.col{flex:1;display:flex;align-items:flex-end;justify-content:center;gap:2px;height:100%;position:relative;cursor:default;min-width:22px}
+.col b{display:block;width:40%;max-width:18px;border-radius:4px 4px 0 0;min-height:1px}
+.col:hover{background:rgba(0,0,0,.035);border-radius:6px 6px 0 0}
+.xl{display:flex;gap:10px;padding:4px 4px 0;direction:ltr}
+.xl span{flex:1;text-align:center;font-size:11px;color:var(--muted);min-width:22px}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;padding:7px 10px;border-radius:8px;font-size:12.5px;z-index:100;display:none;line-height:1.6;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.tip i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-inline-end:5px}
+
+/* home */
+.home{max-width:980px;margin:30px auto}
+.home h1{font-size:28px;text-align:center}
+.home .sub{text-align:center;margin-bottom:26px;font-size:15px}
+.cards2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.acard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;cursor:pointer;box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s;text-align:right;width:100%}
+.acard:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.acard .ic{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-size:24px;color:#fff;margin-bottom:12px}
+.acard h2{font-size:21px}
+.acard p{color:var(--ink-2);margin:4px 0 14px;font-size:14px}
+.acard dl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}
+.acard dt{font-size:12px;color:var(--muted)} .acard dd{margin:0;font-weight:800;font-size:18px}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(20,20,18,.45);display:flex;align-items:flex-start;justify-content:center;z-index:50;padding:40px 12px;overflow:auto}
+.modal{background:var(--surface);border-radius:14px;width:min(560px,100%);box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal.wide{width:min(900px,100%)}
+.modal-h{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.modal-h h2{flex:1}
+.modal-b{padding:16px 18px}
+.modal-f{display:flex;gap:8px;justify-content:flex-start;padding:12px 18px;border-top:1px solid var(--line);background:var(--surface-2);border-radius:0 0 14px 14px}
+.fld{display:block;margin-bottom:12px}
+.fld>span{display:block;font-size:13px;color:var(--ink-2);font-weight:600;margin-bottom:4px}
+.fld .inp{width:100%}
+.fld.chk{display:flex;align-items:center;gap:8px}
+.fld.chk>span{margin:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:10px;z-index:200;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.note{background:var(--warn-soft);border:1px solid #efd9a6;color:#6d4a00;border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:14px}
+.muted-box{background:var(--surface-2);border:1px dashed var(--line-2);border-radius:10px;padding:10px 14px;font-size:13.5px;color:var(--ink-2)}
+.print-title{display:none}
+.credit{text-align:center;color:var(--muted);font-size:13px;padding:18px 16px 28px;border-top:1px solid var(--line);max-width:1400px;margin:0 auto}
+.credit b{color:var(--ink-2);font-weight:700}
+main+.credit{margin-top:-40px}
+/* first column stays visible while scrolling wide tables sideways */
+table.sticky1 tbody tr:not(.grp) td:first-child, table.sticky1 thead th:first-child, table.sticky1 tfoot td:first-child{position:sticky;right:0;z-index:2;background:var(--surface);box-shadow:-1px 0 0 var(--line)}
+table.sticky1 thead th:first-child{z-index:3;background:var(--surface-2)}
+table.sticky1 tfoot tr.grand td:first-child{background:var(--accent)}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mcell{display:block}
+.mcell span{display:block;font-size:13px;color:var(--ink-2);margin-bottom:3px}
+.mcell .inp{width:100%;text-align:center;direction:ltr}
+.mcell.paid .inp{background:var(--good-soft);border-color:#b9dcb9;color:var(--good);font-weight:700}
+.syncbig{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.syncbig .btn{font-size:17px;padding:12px 20px;width:100%;justify-content:center}
+.steps{margin:0;padding-inline-start:20px;color:var(--ink-2);font-size:14px}
+.steps li{margin-bottom:6px}
+.topsync{margin-inline-start:6px}
+@media (max-width:640px){
+  body{font-size:14px}
+  .row2{grid-template-columns:1fr 1fr}
+  .search{min-width:0;width:100%}
+  .kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi{padding:10px 11px}
+  .kpi .v{font-size:19px}
+  .g2{grid-template-columns:1fr}
+  .top-in{padding:8px 12px;gap:8px}
+  .brand{font-size:16px}
+  .brand small{display:none}
+  .switch{order:3;width:100%;margin-inline-start:0}
+  .switch button{flex:1}
+  .topsync{margin-inline-start:auto}
+  main{padding:12px 12px 90px}
+  h1{font-size:19px}
+  .bar{gap:8px}
+  .bar>select.inp{flex:1 1 40%}
+  th,td{padding:6px 8px}
+  .cell{width:40px;padding:6px 2px}
+  .ov{padding:0;align-items:stretch}
+  .modal,.modal.wide{width:100%;border-radius:0;min-height:100%;display:flex;flex-direction:column}
+  .modal-b{flex:1}
+  .modal-f{border-radius:0;position:sticky;bottom:0}
+  .home{margin:14px auto}
+  .home h1{font-size:23px}
+  .acard{padding:16px}
+}
+@media (max-width:380px){ .row2{grid-template-columns:1fr} .mgrid{grid-template-columns:repeat(2,1fr)} }
+@media print{
+  body{background:#fff;font-size:12px}
+  .top,.bar .btn,.noprint,.btn{display:none!important}
+  main{padding:0;max-width:none}
+  .card{box-shadow:none;border:0}
+  .tw{overflow:visible}
+  th{position:static}
+  .print-title{display:block;text-align:center;margin-bottom:10px}
+  .cell{border:0}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+/* ============================================================ data */
+const SEED = /*__SEED__*/null;
+const LS_KEY = "ahliya-jamiyat-v1";
+const MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const DEV_KEY = "ahliya-device";
+const SNAP_KEY = "ahliya-before-sync";
+
+function emptyDB(){
+  return { version: 2, deleted: {}, meta: {},
+    aza: { settings: { title: "جمعية العزاء", monthlyFee: 2, bankBalance: 0, currency: "ر.ع" }, settingsTs: 0,
+           groups: [], members: [], years: {}, expenses: [], income: [], receipts: [] },
+    majlis: { settings: { title: "جمعية المجلس", currency: "ر.ع", contractTotal: 0 }, settingsTs: 0,
+              groups: [], members: [], plans: [], overrides: {}, overridesTs: {}, payments: [], expenses: [], income: [],
+              stages: [], contractorPayments: [], receipts: [] } };
+}
+/* brings data from any earlier version up to the current shape (v2 adds change-tracking for sync) */
+function migrate(d){
+  if (!d || typeof d !== "object" || !d.aza || !d.majlis) return null;
+  const e = emptyDB();
+  for (const a of ["aza", "majlis"]) for (const [k, v] of Object.entries(e[a])) if (d[a][k] === undefined) d[a][k] = (d.version === 1 && k === "settingsTs") ? 1 : v;
+  for (const y of Object.values(d.aza.years)) y.ts = y.ts || {};
+  d.deleted = d.deleted || {}; d.meta = d.meta || {};
+  // the old "قائمة التعزيز" plan became "الجمعية الثالثة": 100 per member, paid in instalments of 20
+  const p4 = d.majlis.plans.find(p => p.id === "p4");
+  if (p4 && /^قائمة التعزيز/.test(p4.name)) Object.assign(p4, { name: "الجمعية الثالثة", amount: 100, installment: 20, note: "100 ريال على 5 دفعات، كل دفعة 20 ريال", u: Date.now() });
+  // one-time: مجموعة خليفة بن راشد removed from the system; its money stays as other income (fixed id so devices agree)
+  d.fixes = d.fixes || {};
+  if (!d.fixes.khalifa) {
+    const g = d.majlis.groups.find(g => /خليفة بن راشد/.test(g.name));
+    if (g) removeGroup(d, "majlis", g.id, `مساهمات أخرى — ${g.name}`, "mi-khalifa");
+    d.fixes.khalifa = true;
+  }
+  d.version = 2;
+  return d;
+}
+/* deletes a group, its members and their payments (as tombstones, so sync carries it);
+   the money they paid is kept as one "other income" entry so the balance does not change */
+function removeGroup(d, a, gid, incomeTitle, incomeId){
+  const ts = Date.now(), L = d[a];
+  const mids = L.members.filter(m => m.groupId === gid).map(m => m.id), set = new Set(mids);
+  let total = 0;
+  if (a === "majlis") {
+    const ps = L.payments.filter(p => set.has(p.memberId));
+    total = sum(ps, p => p.amount);
+    ps.forEach(p => d.deleted[`majlis:payments:${p.id}`] = ts);
+    L.payments = L.payments.filter(p => !set.has(p.memberId));
+    mids.forEach(id => { if (L.overrides[id]) { delete L.overrides[id]; L.overridesTs[id] = ts; } });
+  } else {
+    for (const [y, yr] of Object.entries(L.years)) for (const id of mids) if (yr.pay[id]) {
+      total += sum(yr.pay[id]); delete yr.pay[id]; delete yr.ts[id]; d.deleted[`aza:row:${y}:${id}`] = ts;
+    }
+  }
+  mids.forEach(id => d.deleted[`${a}:members:${id}`] = ts);
+  L.members = L.members.filter(m => m.groupId !== gid);
+  L.groups = L.groups.filter(g => g.id !== gid); d.deleted[`${a}:groups:${gid}`] = ts;
+  if (total && incomeTitle) L.income.push({ id: incomeId || uid("l"), title: incomeTitle, amount: total, date: today(), u: ts });
+  return { members: mids.length, total };
+}
+
+let DB = null;
+try { DB = migrate(JSON.parse(localStorage.getItem(LS_KEY))); } catch (e) {}
+if (!DB) DB = migrate(SEED ? clone(SEED) : emptyDB());
+
+/* per-device settings — never synced */
+let DEV = {};
+try { DEV = JSON.parse(localStorage.getItem(DEV_KEY)) || {}; } catch (e) {}
+const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+if (!DEV.name) DEV.name = IS_MOBILE ? "الجوال" : "الكمبيوتر";
+if (!DEV.prefix) DEV.prefix = IS_MOBILE ? "ج" : "ك";
+function saveDev(){ try { localStorage.setItem(DEV_KEY, JSON.stringify(DEV)); } catch (e) {} }
+
+const now = () => Date.now();
+function touch(o){ if (o) o.u = now(); return o; }
+function tomb(key){ DB.deleted[key] = now(); }
+
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function save(){
+  DB.meta.savedAt = new Date().toISOString();
+  try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
+  catch (e) { toast("تعذّر الحفظ في المتصفح — صدّر نسخة احتياطية الآن"); }
+}
+function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function n(v){ const x = parseFloat(v); return isFinite(x) ? x : 0; }
+function fmt(v){ return (Math.round(n(v)*1000)/1000).toLocaleString("en-US",{maximumFractionDigits:3}); }
+function money(v){ return `<span class="num">${fmt(v)}</span>`; }
+function today(){ return new Date().toISOString().slice(0,10); }
+function yearOf(d){ const m = String(d||"").match(/(\d{4})/); return m ? +m[1] : null; }
+function norm(s){ return String(s||"").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").replace(/ـ/g,"").toLowerCase(); }
+function sum(arr, f = x => x){ return arr.reduce((s,x) => s + n(f(x)), 0); }
+
+/* ============================================================ state */
+const S = { a: null, tab: "dash", year: null, group: "", q: "", showOff: false, expYear: "" };
+const TABS = {
+  aza: [["dash","لوحة المعلومات"],["subs","الاشتراكات الشهرية"],["arrears","المتأخرات"],["expenses","المصروفات"],["income","إيرادات أخرى"],["members","الأعضاء والمجموعات"],["reports","التقارير السنوية"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
+  majlis: [["dash","لوحة المعلومات"],["contrib","المساهمات"],["pay","تسجيل دفعة"],["late","المتخلفون عن الدفع"],["expenses","مصروفات البناء"],["income","إيرادات أخرى"],["contractor","المقاول"],["members","الأعضاء والمجموعات"],["plans","بنود المساهمة"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
+};
+
+/* ============================================================ common helpers */
+function groupsOf(a){ return DB[a].groups; }
+function membersOf(a){ return DB[a].members; }
+function member(a, id){ return DB[a].members.find(m => m.id === id); }
+function groupName(a, id){ const g = DB[a].groups.find(g => g.id === id); return g ? g.name : "بدون مجموعة"; }
+function shortGroup(name){ return String(name).replace(/^مجموعة\s*/,""); }
+function sortedMembers(a, filterFn = () => true){
+  const order = new Map(DB[a].groups.map((g,i) => [g.id,i]));
+  return DB[a].members.filter(filterFn).slice().sort((x,y) => (order.get(x.groupId) ?? 999) - (order.get(y.groupId) ?? 999));
+}
+function groupOptions(a, sel, withAll){
+  return (withAll ? `<option value="">كل المجموعات</option>` : "") +
+    DB[a].groups.map(g => `<option value="${g.id}" ${g.id===sel?"selected":""}>${esc(shortGroup(g.name))}</option>`).join("");
+}
+function searchBox(){ return `<input class="inp search" type="search" placeholder="بحث بالاسم…" data-search value="${esc(S.q)}">`; }
+
+/* ============================================================ جمعية العزاء — calculations */
+const AZ = {
+  get d(){ return DB.aza; },
+  fee(){ return n(DB.aza.settings.monthlyFee) || 0; },
+  years(){ return Object.keys(DB.aza.years).map(Number).sort((a,b) => a-b); },
+  cutoff(){
+    const s = DB.aza.settings;
+    if (s.cutoff) { const [y,m] = s.cutoff.split("-").map(Number); if (y && m) return {y,m}; }
+    const d = new Date(); return { y: d.getFullYear(), m: d.getMonth()+1 };
+  },
+  row(y, mid){ return DB.aza.years[y]?.pay[mid]; },
+  paid(y, mid){ const r = AZ.row(y, mid); return r ? sum(r) : 0; },
+  dueMonths(y){ const c = AZ.cutoff(); return y < c.y ? 12 : y === c.y ? c.m : 0; },
+  due(y, mid){ const m = member("aza", mid); if (!m || m.exempt) return 0; return AZ.dueMonths(y) * AZ.fee(); },
+  arrears(y, mid){ return Math.max(0, AZ.due(y, mid) - AZ.paid(y, mid)); },
+  memberSummary(mid){
+    const rows = AZ.years().filter(y => AZ.row(y, mid)).map(y => ({ y, paid: AZ.paid(y, mid), due: AZ.due(y, mid), arrears: AZ.arrears(y, mid) }));
+    return { rows, paid: sum(rows, r => r.paid), due: sum(rows, r => r.due), arrears: sum(rows, r => r.arrears) };
+  },
+  yearSummary(y){
+    const ids = Object.keys(DB.aza.years[y]?.pay || {});
+    const exp = sum(DB.aza.expenses.filter(e => yearOf(e.date) === y), e => e.amount);
+    const inc = sum(DB.aza.income.filter(e => yearOf(e.date) === y), e => e.amount);
+    return { y, count: ids.filter(id => !member("aza", id)?.exempt).length, paid: sum(ids, id => AZ.paid(y, id)),
+             due: sum(ids, id => AZ.due(y, id)), arrears: sum(ids, id => AZ.arrears(y, id)), exp, inc };
+  },
+  totals(){
+    const ys = AZ.years().map(AZ.yearSummary);
+    const paid = sum(ys, r => r.paid), exp = sum(DB.aza.expenses, e => e.amount), inc = sum(DB.aza.income, e => e.amount);
+    return { ys, paid, exp, inc, arrears: sum(ys, r => r.arrears), balance: paid + inc - exp };
+  },
+};
+
+/* ============================================================ جمعية المجلس — calculations */
+const MJ = {
+  required(mid, pid){
+    const o = DB.majlis.overrides[mid];
+    if (o && o[pid] !== undefined && o[pid] !== null && o[pid] !== "") return n(o[pid]);
+    const m = member("majlis", mid); if (m && m.exempt) return 0;
+    const p = DB.majlis.plans.find(p => p.id === pid); return p ? n(p.amount) : 0;
+  },
+  paid(mid, pid){ return sum(DB.majlis.payments.filter(p => p.memberId === mid && (!pid || p.planId === pid)), p => p.amount); },
+  member(mid){
+    const plans = DB.majlis.plans.map(p => { const req = MJ.required(mid, p.id), paid = MJ.paid(mid, p.id); return { p, req, paid, rem: Math.max(0, req - paid) }; });
+    return { plans, req: sum(plans, x => x.req), paid: sum(plans, x => x.paid), rem: sum(plans, x => x.rem) };
+  },
+  totals(){
+    const ms = DB.majlis.members.filter(m => m.active !== false);
+    const per = ms.map(m => ({ m, ...MJ.member(m.id) }));
+    const paidAll = sum(DB.majlis.payments, p => p.amount);
+    const exp = sum(DB.majlis.expenses, e => e.amount), inc = sum(DB.majlis.income, e => e.amount);
+    return { per, count: ms.length, req: sum(per, x => x.req), paid: paidAll, rem: sum(per, x => x.rem), exp, inc, balance: paidAll + inc - exp };
+  },
+};
+
+/* ============================================================ rendering shell */
+function render(){
+  document.body.className = S.a || "";
+  const h = S.a ? `#${S.a}/${S.tab}` : "#";
+  if (location.hash !== h) history.replaceState(null, "", h);
+  const app = document.getElementById("app");
+  if (!S.a) { app.innerHTML = homeView() + credit(); return; }
+  const view = S.tab === "sync" ? syncView : S.tab === "receipts" ? receiptsView : (S.a === "aza" ? AZA_VIEWS : MJ_VIEWS)[S.tab] || (() => "");
+  app.innerHTML = shell(view());
+  applySearch();
+}
+function shell(content){
+  const t = DB[S.a].settings.title;
+  return `
+  <header class="top">
+    <div class="top-in">
+      <button class="brand" data-act="home"><span class="logo">${S.a === "aza" ? "☾" : "⌂"}</span><span>${esc(t)}<small>تطبيق محاسبة الجمعيات الأهلية</small></span></button>
+      <div class="switch" role="tablist">
+        <button class="${S.a==="aza"?"on":""}" data-act="open" data-a="aza">جمعية العزاء</button>
+        <button class="${S.a==="majlis"?"on":""}" data-act="open" data-a="majlis">جمعية المجلس</button>
+      </div>
+      <button class="btn sm topsync" data-act="tab" data-tab="sync" title="المزامنة بين الأجهزة">⇅ مزامنة</button>
+    </div>
+    <nav class="tabs">${TABS[S.a].map(([k,l]) => `<button class="${S.tab===k?"on":""}" data-act="tab" data-tab="${k}">${l}</button>`).join("")}</nav>
+  </header>
+  <main>${backupNag()}${content}</main>${credit()}`;
+}
+function credit(){ return `<footer class="credit">إعداد وتصميم: <b>محمد المقبالي أبو المعتز</b></footer>`; }
+function backupNag(){
+  const last = DB.meta.lastBackup ? new Date(DB.meta.lastBackup) : null;
+  const days = last ? (Date.now() - last) / 864e5 : Infinity;
+  if (days < 30 || S.tab === "sync" || (!DB.aza.members.length && !DB.majlis.members.length)) return "";
+  return `<div class="note noprint">البيانات محفوظة على هذا الجهاز فقط. ${last ? "مضى أكثر من شهر على آخر إرسال أو نسخة احتياطية." : "لم تُرسَل أي نسخة بعد."} <button class="btn sm" data-act="gosync">⇅ إرسال نسخة الآن</button></div>`;
+}
+function pageHead(title, sub, actions = ""){
+  return `<div class="print-title"><h1>${esc(DB[S.a].settings.title)} — ${esc(title)}</h1><p class="sub">${new Date().toLocaleDateString("ar-OM-u-nu-latn")}</p></div>
+  <div class="bar"><div class="grow"><h1>${esc(title)}</h1>${sub ? `<p class="sub">${sub}</p>` : ""}</div>${actions}</div>`;
+}
+const printBtn = `<button class="btn" data-act="print">🖨 طباعة</button>`;
+const xlsBtn = `<button class="btn" data-act="xls">⬇ تصدير Excel</button>`;
+function kpi(label, value, hint = "", cls = ""){ return `<div class="kpi ${cls}"><div class="l">${label}</div><div class="v">${value}</div>${hint ? `<div class="h">${hint}</div>` : ""}</div>`; }
+function progress(p){ return `<div class="prog"><i style="width:${Math.max(0,Math.min(100,p)).toFixed(1)}%"></i></div>`; }
+const cur = () => `<small>${esc(DB[S.a].settings.currency || "ر.ع")}</small>`;
+
+/* bar chart: series = [{name,color,values}] labels=[...] */
+function barChart(labels, series){
+  const max = Math.max(1, ...series.flatMap(s => s.values));
+  const cols = labels.map((l,i) => {
+    const tip = `<b>${esc(l)}</b><br>` + series.map(s => `<i style="background:${s.color}"></i>${esc(s.name)}: ${fmt(s.values[i])}`).join("<br>");
+    return `<div class="col" data-tip="${esc(tip)}">${series.map(s => `<b style="height:${(s.values[i]/max*100).toFixed(2)}%;background:${s.color}"></b>`).join("")}</div>`;
+  }).join("");
+  return `<div class="chart"><div class="legend">${series.map(s => `<span style="--c:${s.color}">${esc(s.name)}</span>`).join("")}</div>
+    <div class="plot">${cols}</div><div class="xl">${labels.map(l => `<span>${esc(l)}</span>`).join("")}</div></div>`;
+}
+
+/* ============================================================ home */
+function homeView(){
+  if (!DB.aza.members.length && !DB.majlis.members.length) return `<div class="home">
+    <h1>الجمعيات الأهلية</h1>
+    <p class="sub">مرحباً — هذا الجهاز لا يحتوي على بيانات بعد</p>
+    <div class="card" style="max-width:560px;margin:auto"><div class="card-b syncbig">
+      <h2>نقل البيانات من الكمبيوتر</h2>
+      <ol class="steps">
+        <li>على الكمبيوتر: افتح التطبيق ← <b>⇅ مزامنة</b> ← <b>إرسال البيانات</b>، وأرسل الملف لنفسك (واتساب أو البريد).</li>
+        <li>على هذا الجهاز: احفظ الملف، ثم اضغط الزر بالأسفل واختره.</li>
+      </ol>
+      <button class="btn pri" data-act="syncimport">⬇ استلام ملف المزامنة</button>
+      <button class="btn" data-act="open" data-a="aza">البدء بدون بيانات</button>
+    </div></div></div>`;
+  const a = AZ.totals(), m = MJ.totals();
+  return `<div class="home">
+    <h1>الجمعيات الأهلية</h1>
+    <p class="sub">اختر الجمعية لإدارة الاشتراكات والمدفوعات والمصروفات</p>
+    <div class="cards2">
+      <button class="acard" data-act="open" data-a="aza">
+        <div class="ic" style="background:var(--aza)">☾</div>
+        <h2>${esc(DB.aza.settings.title)}</h2>
+        <p>اشتراك شهري ${fmt(AZ.fee())} ${esc(DB.aza.settings.currency)} لكل عضو${AZ.years().length ? ` — سجل الاشتراكات من ${AZ.years()[0]} حتى ${AZ.years().at(-1)}` : ""}</p>
+        <dl><div><dt>الرصيد الدفتري</dt><dd>${money(a.balance)}</dd></div><div><dt>المتأخرات</dt><dd class="t-bad">${money(a.arrears)}</dd></div>
+        <div><dt>الأعضاء الفعالون</dt><dd>${DB.aza.members.filter(m => m.active && !m.exempt).length}</dd></div><div><dt>المصروفات</dt><dd>${money(a.exp)}</dd></div></dl>
+      </button>
+      <button class="acard" data-act="open" data-a="majlis">
+        <div class="ic" style="background:var(--majlis)">⌂</div>
+        <h2>${esc(DB.majlis.settings.title)}</h2>
+        <p>مساهمات بناء مجلس البلدة — ${DB.majlis.plans.length} بنود مساهمة ومتابعة المقاول</p>
+        <dl><div><dt>المحصّل</dt><dd>${money(m.paid)}</dd></div><div><dt>المتبقي على الأعضاء</dt><dd class="t-bad">${money(m.rem)}</dd></div>
+        <div><dt>الأعضاء</dt><dd>${m.count}</dd></div><div><dt>الرصيد</dt><dd>${money(m.balance)}</dd></div></dl>
+      </button>
+    </div>
+    <p class="sub" style="margin-top:22px">آخر حفظ: ${DB.meta.savedAt ? new Date(DB.meta.savedAt).toLocaleString("ar-OM-u-nu-latn") : "—"} · هذا الجهاز: ${esc(DEV.name)}
+      · <a href="#" data-act="gosync">⇅ المزامنة مع الجهاز الآخر</a></p>
+  </div>`;
+}
+
+/* ============================================================ AZA views */
+const AZA_VIEWS = {
+  dash(){
+    const t = AZ.totals(), c = AZ.cutoff(), cy = AZ.yearSummary(c.y);
+    const bank = n(DB.aza.settings.bankBalance);
+    const ys = t.ys;
+    return pageHead("لوحة المعلومات", `المتأخرات محسوبة حتى ${MONTHS[c.m-1]} ${c.y} بواقع ${fmt(AZ.fee())} ${esc(DB.aza.settings.currency)} شهرياً`) + `
+    <div class="kpis">
+      ${kpi("إجمالي الاشتراكات المحصّلة", money(t.paid)+cur(), `كل السنوات من ${ys[0]?.y ?? ""} إلى ${ys.at(-1)?.y ?? ""}`, "acc")}
+      ${kpi("إجمالي المصروفات", money(t.exp)+cur(), `${DB.aza.expenses.length} مناسبة / بند`)}
+      ${kpi("إيرادات أخرى", money(t.inc)+cur())}
+      ${kpi("الرصيد الدفتري", money(t.balance)+cur(), "المحصّل + الإيرادات − المصروفات", t.balance >= 0 ? "good" : "bad")}
+      ${kpi("الرصيد البنكي", money(bank)+cur(), `الفرق عن الدفتري: ${fmt(t.balance - bank)}`)}
+      ${kpi("إجمالي المتأخرات", money(t.arrears)+cur(), "على جميع الأعضاء", "bad")}
+      ${kpi(`محصّل ${c.y}`, money(cy.paid)+cur(), `المستحق حتى الآن ${fmt(cy.due)}`)}
+      ${kpi("الأعضاء الفعالون", DB.aza.members.filter(m => m.active && !m.exempt).length, `${DB.aza.groups.length} مجموعة`)}
+    </div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><h2>الاشتراكات والمصروفات حسب السنة</h2></div><div class="card-b">
+        ${barChart(ys.map(r => String(r.y)), [
+          { name: "الاشتراكات المحصّلة", color: "var(--s1)", values: ys.map(r => r.paid) },
+          { name: "المصروفات", color: "var(--s2)", values: ys.map(r => r.exp) }])}
+      </div></div>
+      <div class="card"><div class="card-h"><h2>آخر المصروفات</h2><span class="grow"></span><button class="btn sm" data-act="tab" data-tab="expenses">عرض الكل</button></div>
+        <div class="tw"><table><thead><tr><th>المناسبة</th><th>التاريخ</th><th class="n">المبلغ</th></tr></thead><tbody>
+        ${DB.aza.expenses.slice(-7).reverse().map(e => `<tr><td>${esc(e.title)}</td><td class="t-mut">${esc(e.date)}</td><td class="n">${fmt(e.amount)}</td></tr>`).join("")}
+        </tbody></table></div></div>
+    </div>`;
+  },
+
+  subs(){
+    const ys = AZ.years();
+    if (!ys.length) return pageHead("الاشتراكات الشهرية", "") + `<div class="card"><div class="empty">لا توجد سنوات بعد.<br><br><button class="btn pri" data-act="aznewyear">+ إضافة سنة</button></div></div>`;
+    if (!S.year || !DB.aza.years[S.year]) S.year = ys.at(-1);
+    const y = S.year, pay = DB.aza.years[y]?.pay || {};
+    const ids = Object.keys(pay);
+    const order = new Map(DB.aza.groups.map((g,i) => [g.id,i]));
+    const mems = ids.map(id => member("aza", id)).filter(Boolean)
+      .filter(m => !S.group || m.groupId === S.group)
+      .sort((a,b) => (order.get(a.groupId) ?? 999) - (order.get(b.groupId) ?? 999));
+    const fee = AZ.fee();
+    let body = "", lastG = null;
+    const groupsInView = [];
+    for (const m of mems) {
+      if (m.groupId !== lastG) {
+        lastG = m.groupId; groupsInView.push(lastG);
+        body += `<tr class="grp" data-grp="${lastG}"><td colspan="17">${esc(groupName("aza", lastG))} <button class="btn sm noprint" data-act="azgpay" data-g="${lastG}" style="margin-inline-start:10px">💰 دفع للمجموعة</button> <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}">📊 تقرير المجموعة</button></td></tr>`;
+      }
+      const r = pay[m.id];
+      body += `<tr data-name="${esc(norm(m.name))}" data-g="${m.groupId}">
+        <td class="nm"><a href="#" data-act="azmonths" data-m="${m.id}" title="تسجيل الأشهر وإصدار إيصال">${esc(m.name)}</a>${m.exempt ? ` <span class="pill">معفى</span>` : ""}</td>
+        ${r.map((v,i) => `<td class="n" style="padding:2px"><input class="cell ${n(v) ? "p" : "z"}" inputmode="decimal" value="${n(v) ? fmt(v) : "0"}" data-chg="azcell" data-y="${y}" data-m="${m.id}" data-i="${i}" aria-label="${esc(m.name)} ${MONTHS[i]}"></td>`).join("")}
+        <td class="n"><b id="rt-${m.id}">${fmt(sum(r))}</b></td>
+        <td class="n" id="ra-${m.id}">${arrearsPill(AZ.arrears(y, m.id))}</td>
+        <td class="n noprint" style="white-space:nowrap"><button class="btn sm" data-act="azfill" data-m="${m.id}" title="تسديد كل الأشهر المستحقة">✓ تسديد</button>
+          <button class="btn sm ghost danger" data-act="azrmyear" data-m="${m.id}" title="إزالة من هذه السنة">✕</button></td>
+      </tr>`;
+    }
+    const foot = `<tr class="grand"><td>المجموع</td>${MONTHS.map((_,i) => `<td class="n" id="mt-${i}">${fmt(sum(mems, m => pay[m.id][i]))}</td>`).join("")}<td class="n" id="gt">${fmt(sum(mems, m => sum(pay[m.id])))}</td><td class="n" id="ga">${fmt(sum(mems, m => AZ.arrears(y, m.id)))}</td><td class="noprint"></td></tr>`;
+    return pageHead(`الاشتراكات الشهرية — ${y}`, `اكتب المبلغ في خانة الشهر ويُحفظ تلقائياً، أو اضغط على اسم العضو لتسجيل الأشهر وإصدار إيصال. الاشتراك الشهري ${fmt(fee)} ${esc(DB.aza.settings.currency)}.`,
+      `${printBtn}${xlsBtn}`) + `
+    <div class="bar noprint">
+      <select class="inp" data-chg="year">${ys.map(v => `<option ${v===y?"selected":""}>${v}</option>`).join("")}</select>
+      <select class="inp" data-chg="group">${groupOptions("aza", S.group, true)}</select>
+      ${searchBox()}
+      <span class="grow"></span>
+      <button class="btn" data-act="azgpay">💰 دفعة مجموعة</button>
+      <button class="btn" data-act="azaddtoyear">+ إضافة عضو لهذه السنة</button>
+      <button class="btn pri" data-act="aznewyear">+ سنة جديدة</button>
+    </div>
+    <div class="card"><div class="tw"><table class="export sticky1" id="subs">
+      <thead><tr><th>الاسم</th>${MONTHS.map(m => `<th class="n">${m}</th>`).join("")}<th class="n">المجموع</th><th class="n">المتأخر</th><th class="noprint"></th></tr></thead>
+      <tbody>${body || `<tr><td colspan="17" class="empty">لا يوجد أعضاء في هذه السنة</td></tr>`}</tbody>
+      <tfoot>${foot}</tfoot></table></div></div>`;
+  },
+
+  arrears(){
+    const c = AZ.cutoff();
+    const rows = sortedMembers("aza", m => !m.exempt && (S.showOff || m.active) && (!S.group || m.groupId === S.group))
+      .map(m => ({ m, s: AZ.memberSummary(m.id) })).filter(x => x.s.arrears > 0);
+    let body = "", lastG = null;
+    for (const { m, s } of rows) {
+      if (m.groupId !== lastG) { lastG = m.groupId; body += `<tr class="grp"><td colspan="5">${esc(groupName("aza", lastG))} <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}" style="margin-inline-start:10px">📊 تقرير المجموعة</button></td></tr>`; }
+      const detail = s.rows.filter(r => r.arrears > 0).map(r => `<span class="pill warn" style="margin:1px">${r.y}: ${fmt(r.arrears)}</span>`).join(" ");
+      body += `<tr data-name="${esc(norm(m.name))}" class="${m.active ? "" : "off"}"><td class="nm"><a href="#" data-act="azstmt" data-m="${m.id}">${esc(m.name)}</a>${m.active ? "" : ` <span class="pill">غير فعال</span>`}</td>
+        <td class="n">${fmt(s.due)}</td><td class="n">${fmt(s.paid)}</td><td class="n t-bad">${fmt(s.arrears)}</td><td>${detail}</td></tr>`;
+    }
+    return pageHead("المتأخرات", `المبالغ غير المسددة لكل عضو في السنوات التي كان مسجلاً فيها، حتى ${MONTHS[c.m-1]} ${c.y}.`, printBtn + xlsBtn) + `
+    <div class="bar noprint">
+      <select class="inp" data-chg="group">${groupOptions("aza", S.group, true)}</select>
+      ${searchBox()}
+      <label class="fld chk" style="margin:0"><input type="checkbox" data-chg="showoff" ${S.showOff ? "checked" : ""}><span>إظهار غير الفعالين</span></label>
+    </div>
+    <div class="kpis">${kpi("عدد المتأخرين", rows.length, "", "acc")}${kpi("إجمالي المتأخرات", money(sum(rows, r => r.s.arrears)) + cur(), "", "bad")}</div>
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th>الاسم</th><th class="n">المستحق</th><th class="n">المدفوع</th><th class="n">المتأخر</th><th>تفصيل حسب السنة</th></tr></thead>
+    <tbody>${body || `<tr><td colspan="5" class="empty">لا توجد متأخرات 🎉</td></tr>`}</tbody></table></div></div>`;
+  },
+
+  expenses(){ return ledgerView("aza", "expenses", "المصروفات", "مصروفات العزاء والمناسبات", true); },
+  income(){ return ledgerView("aza", "income", "إيرادات أخرى", "تبرعات وإيرادات من خارج الاشتراكات الشهرية", false); },
+  members(){ return membersView("aza"); },
+
+  reports(){
+    const t = AZ.totals();
+    let bal = 0;
+    const rows = t.ys.map(r => { bal += r.paid + r.inc - r.exp; return `<tr><td class="n"><b>${r.y}</b></td><td class="n">${r.count}</td><td class="n">${fmt(r.due)}</td><td class="n">${fmt(r.paid)}</td>
+      <td class="n ${r.arrears ? "t-bad" : ""}">${fmt(r.arrears)}</td><td class="n">${fmt(r.inc)}</td><td class="n">${fmt(r.exp)}</td><td class="n">${fmt(r.paid + r.inc - r.exp)}</td><td class="n"><b>${fmt(bal)}</b></td></tr>`; }).join("");
+    const undated = sum(DB.aza.expenses.filter(e => !yearOf(e.date)), e => e.amount);
+    return pageHead("التقارير السنوية", "ملخص كل سنة: المستحق والمحصّل والمتأخرات والمصروفات والرصيد التراكمي.", printBtn + xlsBtn) + `
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">السنة</th><th class="n">الأعضاء</th><th class="n">المستحق</th><th class="n">المحصّل</th><th class="n">المتأخرات</th><th class="n">إيرادات أخرى</th><th class="n">المصروفات</th><th class="n">صافي السنة</th><th class="n">الرصيد التراكمي</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr class="grand"><td>المجموع</td><td></td><td class="n">${fmt(sum(t.ys, r => r.due))}</td><td class="n">${fmt(t.paid)}</td><td class="n">${fmt(t.arrears)}</td><td class="n">${fmt(t.inc)}</td><td class="n">${fmt(t.exp)}</td><td class="n">${fmt(t.balance)}</td><td></td></tr></tfoot></table></div></div>
+    ${undated ? `<p class="sub" style="margin-top:8px">ملاحظة: مصروفات بدون سنة محددة بمبلغ ${fmt(undated)} محسوبة في المجموع الكلي فقط.</p>` : ""}
+    <div class="card" style="margin-top:14px"><div class="card-h"><h2>المحصّل حسب المجموعة والسنة</h2></div><div class="tw">${groupYearTable()}</div></div>`;
+  },
+
+  settings(){ return settingsView("aza"); },
+};
+function arrearsPill(v){ return v > 0 ? `<span class="pill bad">${fmt(v)}</span>` : `<span class="pill good">✓</span>`; }
+function groupYearTable(){
+  const ys = AZ.years().slice(-8);
+  const rows = DB.aza.groups.map(g => {
+    const ids = DB.aza.members.filter(m => m.groupId === g.id).map(m => m.id);
+    const vals = ys.map(y => sum(ids, id => AZ.paid(y, id)));
+    return sum(vals) ? `<tr><td class="nm">${esc(shortGroup(g.name))} <button class="btn sm noprint" data-act="grpreport" data-g="${g.id}">📊</button></td>${vals.map(v => `<td class="n">${fmt(v)}</td>`).join("")}<td class="n"><b>${fmt(sum(vals))}</b></td></tr>` : "";
+  }).join("");
+  return `<table class="export"><thead><tr><th>المجموعة</th>${ys.map(y => `<th class="n">${y}</th>`).join("")}<th class="n">المجموع</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ============================================================ MAJLIS views */
+const MJ_VIEWS = {
+  dash(){
+    const t = MJ.totals(), s = DB.majlis.settings;
+    const cPaid = sum(DB.majlis.contractorPayments, p => p.amount);
+    const plans = DB.majlis.plans.map(p => {
+      const req = sum(t.per, x => MJ.required(x.m.id, p.id)), paid = sum(DB.majlis.payments.filter(x => x.planId === p.id), x => x.amount);
+      return `<tr><td class="nm">${esc(p.name)}</td><td class="n">${fmt(p.amount)}</td><td class="n">${fmt(req)}</td><td class="n">${fmt(paid)}</td>
+        <td class="n ${req - paid > 0 ? "t-bad" : ""}">${fmt(Math.max(0, req - paid))}</td><td style="min-width:120px">${req ? progress(paid / req * 100) : `<span class="t-mut">حسب الاتفاق</span>`}</td></tr>`;
+    }).join("");
+    const gl = DB.majlis.groups.map(g => {
+      const per = t.per.filter(x => x.m.groupId === g.id); if (!per.length) return "";
+      const req = sum(per, x => x.req), paid = sum(per, x => x.paid), rem = sum(per, x => x.rem);
+      return `<tr><td class="nm">${esc(shortGroup(g.name))}</td><td class="n">${per.length}</td><td class="n">${fmt(paid)}</td><td class="n ${rem ? "t-bad" : ""}">${fmt(rem)}</td><td style="min-width:110px">${progress(req ? paid / req * 100 : 100)}</td><td><button class="btn sm" data-act="grpreport" data-g="${g.id}">📊</button></td></tr>`;
+    }).join("");
+    return pageHead("لوحة المعلومات", "ملخص مساهمات الأعضاء ومصروفات بناء المجلس") + `
+    <div class="kpis">
+      ${kpi("المبلغ المطلوب من الأعضاء", money(t.req)+cur(), `${t.count} عضو`, "acc")}
+      ${kpi("المحصّل من الأعضاء", money(t.paid)+cur(), `نسبة التحصيل ${t.req ? (t.paid / t.req * 100).toFixed(1) : 0}%`, "good")}
+      ${kpi("المتبقي على الأعضاء", money(t.rem)+cur(), `${t.per.filter(x => x.rem > 0).length} عضو متأخر`, "bad")}
+      ${kpi("إيرادات أخرى", money(t.inc)+cur())}
+      ${kpi("مصروفات البناء", money(t.exp)+cur())}
+      ${kpi("الرصيد المتوفر", money(t.balance)+cur(), "المحصّل + الإيرادات − المصروفات", t.balance >= 0 ? "good" : "bad")}
+      ${kpi("المدفوع للمقاول", money(cPaid)+cur(), `من أصل ${fmt(s.contractTotal)}`)}
+      ${kpi("المتبقي للمقاول", money(n(s.contractTotal) - cPaid)+cur())}
+    </div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><h2>بنود المساهمة</h2></div><div class="tw"><table><thead><tr><th>البند</th><th class="n">على العضو</th><th class="n">المطلوب</th><th class="n">المحصّل</th><th class="n">المتبقي</th><th>التقدم</th></tr></thead><tbody>${plans}</tbody></table></div></div>
+      <div class="card"><div class="card-h"><h2>التحصيل حسب المجموعة</h2></div><div class="tw"><table><thead><tr><th>المجموعة</th><th class="n">الأعضاء</th><th class="n">المدفوع</th><th class="n">المتبقي</th><th>التقدم</th><th></th></tr></thead><tbody>${gl}</tbody></table></div></div>
+    </div>`;
+  },
+
+  contrib(){
+    const plans = DB.majlis.plans;
+    const ms = sortedMembers("majlis", m => (S.showOff || m.active !== false) && (!S.group || m.groupId === S.group));
+    let body = "", lastG = null, T = { req: 0, paid: 0, rem: 0 }, PT = plans.map(() => 0);
+    for (const m of ms) {
+      if (m.groupId !== lastG) { lastG = m.groupId; body += `<tr class="grp"><td colspan="${plans.length + 5}">${esc(groupName("majlis", lastG))} <button class="btn sm noprint" data-act="mjgpay" data-g="${lastG}" style="margin-inline-start:10px">💰 دفع للمجموعة</button> <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}">📊 تقرير المجموعة</button></td></tr>`; }
+      const s = MJ.member(m.id);
+      T.req += s.req; T.paid += s.paid; T.rem += s.rem;
+      s.plans.forEach((x,i) => PT[i] += x.paid);
+      body += `<tr data-name="${esc(norm(m.name))}" class="${m.active === false ? "off" : ""}"><td class="nm"><a href="#" data-act="mjstmt" data-m="${m.id}">${esc(m.name)}</a></td>
+        ${s.plans.map(x => `<td class="n">${x.req ? `${fmt(x.paid)} <span class="t-mut">/ ${fmt(x.req)}</span>` : (x.paid ? fmt(x.paid) : `<span class="t-mut">—</span>`)}</td>`).join("")}
+        <td class="n"><b>${fmt(s.paid)}</b></td><td class="n">${s.rem > 0 ? `<span class="pill bad">${fmt(s.rem)}</span>` : `<span class="pill good">مكتمل</span>`}</td>
+        <td class="noprint"><button class="btn sm" data-act="mjpayfor" data-m="${m.id}">+ دفعة</button></td></tr>`;
+    }
+    return pageHead("المساهمات", "المدفوع / المطلوب لكل عضو في كل بند. اضغط على الاسم لعرض كشف الحساب، أو على اسم البند لتعديله.",
+      printBtn + xlsBtn + `<button class="btn pri" data-act="mjplan">+ مساهمة جديدة</button>`) + `
+    <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions("majlis", S.group, true)}</select>${searchBox()}
+      <label class="fld chk" style="margin:0"><input type="checkbox" data-chg="showoff" ${S.showOff ? "checked" : ""}><span>إظهار غير الفعالين</span></label></div>
+    <div class="card"><div class="tw"><table class="export sticky1"><thead><tr><th>الاسم</th>${plans.map(p => `<th class="n"><a href="#" data-act="mjplan" data-id="${p.id}" title="تعديل البند">${esc(p.name)}</a><br><span class="t-mut" style="font-weight:500">${p.amount ? fmt(p.amount) : "حسب الاتفاق"}</span></th>`).join("")}<th class="n">إجمالي المدفوع</th><th class="n">المتبقي</th><th class="noprint"></th></tr></thead>
+    <tbody>${body}</tbody><tfoot><tr class="grand"><td>المجموع</td>${PT.map(v => `<td class="n">${fmt(v)}</td>`).join("")}<td class="n">${fmt(T.paid)}</td><td class="n">${fmt(T.rem)}</td><td class="noprint"></td></tr></tfoot></table></div></div>`;
+  },
+
+  pay(){
+    const recent = DB.majlis.payments.slice().reverse().filter(p => p.date || p.createdAt).slice(0, 40);
+    return pageHead("تسجيل دفعة", "سجّل مبلغاً استلمته من أحد الأعضاء، أو دفعة من صاحب مجموعة عن أعضائه",
+      `<button class="btn pri" data-act="mjgpay">💰 دفعة مجموعة</button>`) + `
+    <div class="grid g2">
+      <div class="card"><div class="card-b">
+        <form data-form="mjpay">
+          <label class="fld"><span>العضو</span><input class="inp" list="mjm" name="member" required placeholder="اكتب جزءاً من الاسم…" autocomplete="off"></label>
+          <datalist id="mjm">${sortedMembers("majlis", m => m.active !== false).map(m => `<option value="${esc(m.name)}">${esc(shortGroup(groupName("majlis", m.groupId)))}</option>`).join("")}</datalist>
+          <div class="row2">
+            <label class="fld"><span>البند</span><select class="inp" name="plan">${DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></label>
+            <label class="fld"><span>المبلغ</span><input class="inp" name="amount" type="number" step="0.001" min="0" required></label>
+          </div>
+          <div class="row2">
+            <label class="fld"><span>التاريخ</span><input class="inp" name="date" type="date" value="${today()}"></label>
+            <label class="fld"><span>ملاحظة</span><input class="inp" name="note" placeholder="مثال: الدفعة الثانية"></label>
+          </div>
+          <div id="mjhint" class="muted-box" style="margin-bottom:12px">اختر العضو لعرض المتبقي عليه.</div>
+          <div class="bar"><button class="btn pri" type="submit" value="receipt">حفظ وإصدار إيصال</button><button class="btn" type="submit" value="save">حفظ فقط</button></div>
+        </form>
+      </div></div>
+      <div class="card"><div class="card-h"><h2>آخر الدفعات المسجلة</h2></div><div class="tw"><table><thead><tr><th>العضو</th><th>البند</th><th class="n">المبلغ</th><th>التاريخ</th><th></th></tr></thead><tbody>
+      ${recent.map(p => `<tr><td class="nm">${esc(member("majlis", p.memberId)?.name)}</td><td>${esc(DB.majlis.plans.find(x => x.id === p.planId)?.name)}</td><td class="n">${fmt(p.amount)}</td><td class="t-mut">${esc(p.date)}</td><td style="white-space:nowrap">${p.batch ? `<button class="btn sm" data-act="mjgreceipt" data-b="${p.batch}">🧾 إيصال المجموعة</button>` : ""}<button class="btn sm" data-act="mjreceipt" data-id="${p.id}">🧾 إيصال</button><button class="btn sm ghost danger" data-act="mjdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">لم تُسجَّل دفعات جديدة بعد</td></tr>`}
+      </tbody></table></div></div>
+    </div>`;
+  },
+
+  late(){
+    const t = MJ.totals();
+    const rows = t.per.filter(x => x.rem > 0 && (!S.group || x.m.groupId === S.group))
+      .sort((a,b) => DB.majlis.groups.findIndex(g => g.id === a.m.groupId) - DB.majlis.groups.findIndex(g => g.id === b.m.groupId));
+    return pageHead("قائمة المتخلفين عن الدفع", `تاريخ التحديث: ${new Date().toLocaleDateString("ar-OM-u-nu-latn")}`, printBtn + xlsBtn) + `
+    <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions("majlis", S.group, true)}</select>${searchBox()}</div>
+    <div class="kpis">${kpi("عدد المتخلفين", rows.length, "", "acc")}${kpi("مجموع المبالغ المتبقية", money(sum(rows, r => r.rem)) + cur(), "", "bad")}</div>
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">ت</th><th>الاسم</th><th>المجموعة</th><th class="n">المطلوب</th><th class="n">المدفوع</th><th class="n">المتبقي</th><th>تفصيل</th><th>الملاحظات</th></tr></thead><tbody>
+    ${rows.map((x,i) => `<tr data-name="${esc(norm(x.m.name))}"><td class="n">${i+1}</td><td class="nm"><a href="#" data-act="mjstmt" data-m="${x.m.id}">${esc(x.m.name)}</a></td><td class="t-mut">${esc(shortGroup(groupName("majlis", x.m.groupId)))}</td>
+      <td class="n">${fmt(x.req)}</td><td class="n">${fmt(x.paid)}</td><td class="n t-bad">${fmt(x.rem)}</td>
+      <td>${x.plans.filter(p => p.rem > 0).map(p => `<span class="pill warn" style="margin:1px">${esc(p.p.name)}: ${fmt(p.rem)}</span>`).join(" ")}</td><td>${esc(x.m.note)}</td></tr>`).join("")}
+    </tbody><tfoot><tr class="grand"><td></td><td>المجموع</td><td></td><td class="n">${fmt(sum(rows, r => r.req))}</td><td class="n">${fmt(sum(rows, r => r.paid))}</td><td class="n">${fmt(sum(rows, r => r.rem))}</td><td></td><td></td></tr></tfoot></table></div></div>`;
+  },
+
+  expenses(){ return ledgerView("majlis", "expenses", "مصروفات بناء المجلس", "كل ما صُرف على بناء المجلس ومواده", true); },
+  income(){ return ledgerView("majlis", "income", "إيرادات أخرى", "تبرعات ومبيعات ومبالغ من خارج مساهمات الأعضاء", false); },
+
+  contractor(){
+    const s = DB.majlis.settings, st = DB.majlis.stages, cp = DB.majlis.contractorPayments;
+    const paid = sum(cp, p => p.amount), total = n(s.contractTotal);
+    const due = sum(st.filter(x => x.done), x => x.amount);
+    return pageHead("المقاول", "المبلغ المتفق عليه، مراحل الدفع حسب الإنجاز، والمبالغ المسلّمة للمقاول", printBtn) + `
+    <div class="kpis">
+      ${kpi("المبلغ المتفق عليه", money(total)+cur(), `<a href="#" data-act="mjcontract">تعديل</a>`, "acc")}
+      ${kpi("المسلّم للمقاول", money(paid)+cur(), `${total ? (paid/total*100).toFixed(1) : 0}% من العقد`, "good")}
+      ${kpi("المتبقي للمقاول", money(total - paid)+cur(), "", "bad")}
+      ${kpi("المستحق حسب المراحل المنجزة", money(due)+cur(), due - paid > 0 ? `مستحق غير مدفوع: ${fmt(due - paid)}` : "لا يوجد مستحق غير مدفوع")}
+    </div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><h2>مراحل الدفع حسب الاتفاق</h2><span class="grow"></span><button class="btn sm" data-act="mjstage">+ مرحلة</button></div>
+        <div class="tw"><table><thead><tr><th>أُنجزت</th><th>المرحلة</th><th class="n">المبلغ</th><th></th></tr></thead><tbody>
+        ${st.map(x => `<tr><td><input type="checkbox" data-chg="stage" data-id="${x.id}" ${x.done ? "checked" : ""} aria-label="أنجزت"></td><td>${esc(x.title)}</td><td class="n">${fmt(x.amount)}</td>
+          <td style="white-space:nowrap"><button class="btn sm ghost" data-act="mjstage" data-id="${x.id}">تعديل</button><button class="btn sm ghost danger" data-act="mjdelstage" data-id="${x.id}">حذف</button></td></tr>`).join("")}
+        </tbody><tfoot><tr class="tot"><td></td><td>المجموع</td><td class="n">${fmt(sum(st, x => x.amount))}</td><td></td></tr></tfoot></table></div></div>
+      <div class="card"><div class="card-h"><h2>المبالغ المسلّمة للمقاول</h2><span class="grow"></span><button class="btn sm pri" data-act="ledgeradd" data-list="contractorPayments">+ دفعة للمقاول</button></div>
+        ${ledgerTable("majlis", "contractorPayments", false)}</div>
+    </div>`;
+  },
+
+  members(){ return membersView("majlis"); },
+
+  plans(){
+    return pageHead("بنود المساهمة", "كل بند هو مبلغ مطلوب من كل عضو (مثل الجمعية الأولى والثانية). يمكن تعديل المبلغ لعضو معيّن من كشف حسابه.",
+      `<button class="btn pri" data-act="mjplan">+ مساهمة جديدة</button>`) + `
+    <div class="card"><div class="tw"><table><thead><tr><th>البند</th><th class="n">المبلغ على كل عضو</th><th>ملاحظات</th><th class="n">المحصّل</th><th></th></tr></thead><tbody>
+    ${DB.majlis.plans.map(p => `<tr><td class="nm">${esc(p.name)}</td><td class="n">${p.amount ? fmt(p.amount) : `<span class="t-mut">حسب الاتفاق</span>`}${p.installment ? ` <span class="pill">دفعات × ${fmt(p.installment)}</span>` : ""}</td><td>${esc(p.note)}</td>
+      <td class="n">${fmt(sum(DB.majlis.payments.filter(x => x.planId === p.id), x => x.amount))}</td>
+      <td style="white-space:nowrap"><button class="btn sm ghost" data-act="mjplan" data-id="${p.id}">تعديل</button><button class="btn sm ghost danger" data-act="mjdelplan" data-id="${p.id}">حذف</button></td></tr>`).join("")}
+    </tbody></table></div></div>`;
+  },
+
+  settings(){ return settingsView("majlis"); },
+};
+
+/* ============================================================ shared views */
+function ledgerTable(a, list, withType){
+  let items = DB[a][list].slice();
+  if (list !== "contractorPayments" && S.expYear) items = items.filter(e => String(yearOf(e.date)) === S.expYear);
+  return `<div class="tw"><table class="export"><thead><tr><th class="n">ت</th><th>البيان</th><th>التاريخ</th><th class="n">المبلغ</th>${withType ? "<th>النوع / التفاصيل</th><th>الأسباب</th>" : ""}<th class="noprint"></th></tr></thead><tbody>
+  ${items.map((e,i) => `<tr data-name="${esc(norm(e.title + " " + (e.type||"")))}"><td class="n">${i+1}</td><td>${esc(e.title)}</td><td class="t-mut" style="white-space:nowrap">${esc(e.date)}</td><td class="n"><b>${fmt(e.amount)}</b></td>
+    ${withType ? `<td>${esc(e.type)}</td><td>${esc(e.reason)}</td>` : ""}
+    <td class="noprint" style="white-space:nowrap"><button class="btn sm ghost" data-act="ledgeredit" data-list="${list}" data-id="${e.id}">تعديل</button><button class="btn sm ghost danger" data-act="ledgerdel" data-list="${list}" data-id="${e.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="7" class="empty">لا توجد بيانات</td></tr>`}
+  </tbody><tfoot><tr class="grand"><td></td><td>المجموع</td><td></td><td class="n">${fmt(sum(items, e => e.amount))}</td>${withType ? "<td></td><td></td>" : ""}<td class="noprint"></td></tr></tfoot></table></div>`;
+}
+function ledgerView(a, list, title, sub, withType){
+  const years = [...new Set(DB[a][list].map(e => yearOf(e.date)).filter(Boolean))].sort();
+  return pageHead(title, sub, `${printBtn}${xlsBtn}<button class="btn pri" data-act="ledgeradd" data-list="${list}">+ إضافة</button>`) + `
+  <div class="bar noprint">${years.length ? `<select class="inp" data-chg="expyear"><option value="">كل السنوات</option>${years.map(y => `<option ${String(y)===S.expYear?"selected":""}>${y}</option>`).join("")}</select>` : ""}${searchBox()}</div>
+  <div class="card">${ledgerTable(a, list, withType)}</div>`;
+}
+
+function membersView(a){
+  const isAza = a === "aza";
+  const ms = sortedMembers(a, m => (S.showOff || m.active !== false) && (!S.group || m.groupId === S.group));
+  let body = "", lastG = null;
+  for (const m of ms) {
+    if (m.groupId !== lastG) { lastG = m.groupId; body += `<tr class="grp"><td colspan="6">${esc(groupName(a, lastG))} <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}" style="margin-inline-start:10px">📊 تقرير المجموعة</button></td></tr>`; }
+    const s = isAza ? AZ.memberSummary(m.id) : MJ.member(m.id);
+    body += `<tr data-name="${esc(norm(m.name))}" class="${m.active === false ? "off" : ""}"><td class="nm"><a href="#" data-act="${isAza ? "azstmt" : "mjstmt"}" data-m="${m.id}">${esc(m.name)}</a></td>
+      <td class="num">${esc(m.phone)}</td>
+      <td>${m.active === false ? `<span class="pill">غير فعال</span>` : `<span class="pill good">فعال</span>`}${m.exempt ? ` <span class="pill">معفى</span>` : ""}</td>
+      <td class="n">${fmt(s.paid)}</td><td class="n">${(isAza ? s.arrears : s.rem) > 0 ? `<span class="t-bad">${fmt(isAza ? s.arrears : s.rem)}</span>` : "0"}</td>
+      <td class="noprint" style="white-space:nowrap"><button class="btn sm ghost" data-act="memedit" data-id="${m.id}">تعديل</button><button class="btn sm ghost danger" data-act="memdel" data-id="${m.id}">حذف</button></td></tr>`;
+  }
+  return pageHead("الأعضاء والمجموعات", `${DB[a].members.length} عضو في ${DB[a].groups.length} مجموعة`, `${printBtn}${xlsBtn}<button class="btn" data-act="groups">إدارة المجموعات</button><button class="btn pri" data-act="memedit">+ عضو جديد</button>`) + `
+  <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions(a, S.group, true)}</select>${searchBox()}
+    <label class="fld chk" style="margin:0"><input type="checkbox" data-chg="showoff" ${S.showOff ? "checked" : ""}><span>إظهار غير الفعالين</span></label></div>
+  <div class="card"><div class="tw"><table class="export"><thead><tr><th>الاسم</th><th>الهاتف</th><th>الحالة</th><th class="n">إجمالي المدفوع</th><th class="n">${isAza ? "المتأخرات" : "المتبقي"}</th><th class="noprint"></th></tr></thead>
+  <tbody>${body}</tbody></table></div></div>`;
+}
+
+function settingsView(a){
+  const s = DB[a].settings;
+  const extra = a === "aza" ? `
+    <div class="row2">
+      <label class="fld"><span>الاشتراك الشهري</span><input class="inp" name="monthlyFee" type="number" step="0.001" value="${esc(s.monthlyFee)}"></label>
+      <label class="fld"><span>الرصيد البنكي الحالي</span><input class="inp" name="bankBalance" type="number" step="0.001" value="${esc(s.bankBalance)}"></label>
+    </div>
+    <label class="fld"><span>احتساب المتأخرات حتى شهر (اتركه فارغاً = الشهر الحالي)</span><input class="inp" name="cutoff" type="month" value="${esc(s.cutoff || "")}"></label>` : `
+    <label class="fld"><span>المبلغ المتفق عليه مع المقاول</span><input class="inp" name="contractTotal" type="number" step="0.001" value="${esc(s.contractTotal)}"></label>`;
+  return pageHead("الإعدادات", "") + `
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><h2>إعدادات ${esc(s.title)}</h2></div><div class="card-b">
+      <form data-form="settings">
+        <label class="fld"><span>اسم الجمعية</span><input class="inp" name="title" value="${esc(s.title)}" required></label>
+        <div class="row2">
+          <label class="fld"><span>العملة</span><input class="inp" name="currency" value="${esc(s.currency)}"></label>
+          <label class="fld"><span>اسم أمين الصندوق (يظهر في الإيصال)</span><input class="inp" name="treasurer" value="${esc(treasurer(a))}"></label>
+        </div>
+        ${extra}
+        <button class="btn pri" type="submit">حفظ الإعدادات</button>
+      </form></div></div>
+    <div class="card"><div class="card-h"><h2>النسخ الاحتياطي</h2></div><div class="card-b">
+      <p class="sub" style="margin-bottom:12px">كل البيانات (الجمعيتان) محفوظة داخل هذا المتصفح على هذا الجهاز. صدّر نسخة احتياطية بانتظام واحفظها في مكان آمن، ويمكنك استيرادها على جهاز آخر.</p>
+      <div class="bar"><button class="btn pri" data-act="backup">⬇ تصدير نسخة احتياطية</button><button class="btn" data-act="restore">⬆ استيراد نسخة احتياطية</button></div>
+      <p class="sub">آخر نسخة احتياطية: ${DB.meta.lastBackup ? new Date(DB.meta.lastBackup).toLocaleString("ar-OM-u-nu-latn") : "لا يوجد"}</p>
+      <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      <p class="sub" style="margin-bottom:8px">إعادة التطبيق إلى البيانات الأصلية المستوردة من ملفات Excel (سيُحذف كل ما أُدخل بعدها).</p>
+      <button class="btn danger" data-act="reset">إعادة تعيين البيانات</button>
+    </div></div>
+  </div>`;
+}
+
+/* ============================================================ modal forms */
+function modal(title, bodyHTML, { wide = false, onSave = null, saveLabel = "حفظ", altLabel = "" } = {}){
+  closeModal();
+  const ov = document.createElement("div");
+  ov.className = "ov"; ov.id = "ov";
+  ov.innerHTML = `<form class="modal ${wide ? "wide" : ""}" novalidate><div class="modal-h"><h2>${esc(title)}</h2><button type="button" class="btn sm ghost" data-close>✕</button></div>
+    <div class="modal-b">${bodyHTML}</div>
+    <div class="modal-f">${onSave && altLabel ? `<button class="btn pri" type="submit" value="alt">${altLabel}</button>` : ""}${onSave ? `<button class="btn ${altLabel ? "" : "pri"}" type="submit" value="save">${saveLabel}</button>` : ""}<button type="button" class="btn" data-close>${onSave ? "إلغاء" : "إغلاق"}</button></div></form>`;
+  document.body.appendChild(ov);
+  const f = ov.querySelector("form");
+  ov.addEventListener("click", e => { if (e.target === ov || e.target.closest("[data-close]")) closeModal(); });
+  f.addEventListener("submit", e => {
+    e.preventDefault();
+    if (!onSave) return closeModal();
+    if (!f.checkValidity()) { f.reportValidity(); return; }
+    const vals = {};
+    new FormData(f).forEach((v,k) => vals[k] = v);
+    f.querySelectorAll("input[type=checkbox][name]").forEach(c => vals[c.name] = c.checked);
+    vals.__alt = e.submitter?.value === "alt";
+    const after = onSave(vals, f);
+    if (after !== false) { closeModal(); save(); render(); if (typeof after === "function") after(); }
+  });
+  const first = f.querySelector("input:not([type=hidden]),select,textarea");
+  if (first) first.focus();
+  return f;
+}
+function closeModal(){ document.getElementById("ov")?.remove(); }
+function fld(label, name, value = "", type = "text", extra = ""){
+  return `<label class="fld"><span>${label}</span><input class="inp" name="${name}" type="${type}" value="${esc(value)}" ${type === "number" ? `step="0.001"` : ""} ${extra}></label>`;
+}
+
+function ledgerForm(list, id){
+  const a = S.a, item = id ? DB[a][list].find(x => x.id === id) : null;
+  const withType = list === "expenses";
+  const titles = { expenses: "مصروف", income: "إيراد", contractorPayments: "دفعة للمقاول" };
+  modal(`${item ? "تعديل" : "إضافة"} ${titles[list]}`, `
+    ${fld(a === "aza" && list === "expenses" ? "المناسبة / البيان" : "البيان", "title", item?.title, "text", "required")}
+    <div class="row2">${fld("المبلغ", "amount", item?.amount ?? "", "number", "required min=0")}${fld("التاريخ", "date", item?.date ?? today(), /^\d{4}-\d{2}-\d{2}$/.test(item?.date ?? today()) ? "date" : "text")}</div>
+    ${withType ? fld("النوع / التفاصيل", "type", item?.type) + fld("الأسباب / ملاحظات", "reason", item?.reason) : ""}`,
+  { onSave: v => {
+      const rec = { title: v.title.trim(), amount: n(v.amount), date: v.date };
+      if (withType) Object.assign(rec, { type: v.type, reason: v.reason });
+      if (item) touch(Object.assign(item, rec)); else DB[a][list].push(touch({ id: uid("l"), ...rec }));
+      toast("تم الحفظ");
+  }});
+}
+
+function memberForm(id){
+  const a = S.a, m = id ? member(a, id) : null;
+  let planFields = "";
+  if (a === "majlis" && m) {
+    const o = DB.majlis.overrides[m.id] || {};
+    planFields = `<div class="muted-box" style="margin-bottom:12px">مبالغ خاصة بهذا العضو (اتركها فارغة لاستخدام المبلغ الافتراضي للبند)</div>
+      <div class="row2">${DB.majlis.plans.map(p => fld(`${esc(p.name)} <span class="t-mut">(افتراضي ${fmt(p.amount)})</span>`, "ov_" + p.id, o[p.id] ?? "", "number", "min=0")).join("")}</div>`;
+  }
+  modal(m ? "تعديل بيانات عضو" : "عضو جديد", `
+    ${fld("الاسم الكامل", "name", m?.name, "text", "required")}
+    <div class="row2">
+      <label class="fld"><span>المجموعة</span><select class="inp" name="groupId">${groupOptions(a, m?.groupId ?? S.group)}</select></label>
+      ${fld("رقم الهاتف", "phone", m?.phone, "tel")}
+    </div>
+    ${fld("ملاحظات", "note", m?.note)}
+    <label class="fld chk"><input type="checkbox" name="active" ${m?.active === false ? "" : "checked"}><span>عضو فعال</span></label>
+    <label class="fld chk"><input type="checkbox" name="exempt" ${m?.exempt ? "checked" : ""}><span>معفى من الدفع (مثل فاعل خير)</span></label>
+    ${!m && a === "aza" && AZ.years().length ? `<label class="fld chk"><input type="checkbox" name="addYear" checked><span>إضافته لسنة ${AZ.years().at(-1)}</span></label>` : ""}
+    ${planFields}`,
+  { onSave: v => {
+      const name = v.name.trim();
+      const dup = DB[a].members.find(x => x.id !== m?.id && norm(x.name).replace(/\s+/g," ") === norm(name).replace(/\s+/g," "));
+      if (dup && !confirm("يوجد عضو بنفس الاسم. هل تريد المتابعة؟")) return false;
+      const rec = { name, groupId: v.groupId, phone: v.phone, note: v.note, active: v.active, exempt: v.exempt };
+      let target = m;
+      if (m) touch(Object.assign(m, rec)); else { target = touch({ id: uid(a[0] + "m"), ...rec }); DB[a].members.push(target); }
+      if (a === "aza" && !m && v.addYear) { const y = AZ.years().at(-1); DB.aza.years[y].pay[target.id] = Array(12).fill(0); DB.aza.years[y].ts[target.id] = now(); }
+      if (a === "majlis" && m) {
+        const o = {};
+        DB.majlis.plans.forEach(p => { const val = v["ov_" + p.id]; if (val !== "" && val !== undefined) o[p.id] = n(val); });
+        const before = JSON.stringify(DB.majlis.overrides[m.id] || {});
+        if (Object.keys(o).length) DB.majlis.overrides[m.id] = o; else delete DB.majlis.overrides[m.id];
+        if (before !== JSON.stringify(o)) DB.majlis.overridesTs[m.id] = now();
+      }
+      toast("تم حفظ العضو");
+  }});
+}
+
+function groupsForm(){
+  const a = S.a;
+  const rows = () => DB[a].groups.map((g,i) => `<tr><td><input class="inp" style="width:100%" data-gname="${g.id}" value="${esc(g.name)}"></td>
+    <td class="n">${DB[a].members.filter(m => m.groupId === g.id).length}</td>
+    <td style="white-space:nowrap"><button type="button" class="btn sm ghost" data-gmove="${g.id}" data-dir="-1" ${i ? "" : "disabled"}>▲</button><button type="button" class="btn sm ghost" data-gmove="${g.id}" data-dir="1">▼</button>
+    <button type="button" class="btn sm ghost danger" data-gdel="${g.id}">حذف</button></td></tr>`).join("");
+  let f;
+  const applyNames = () => f.querySelectorAll("[data-gname]").forEach(i => {
+    const g = DB[a].groups.find(g => g.id === i.dataset.gname), v = i.value.trim();
+    if (g && v && g.name !== v) { g.name = v; touch(g); }
+  });
+  f = modal("إدارة المجموعات", `<div class="tw"><table><thead><tr><th>اسم المجموعة</th><th class="n">الأعضاء</th><th></th></tr></thead><tbody id="gl">${rows()}</tbody></table></div>
+    <div class="bar" style="margin-top:12px"><input class="inp" id="newg" placeholder="اسم مجموعة جديدة" style="flex:1"><button type="button" class="btn" id="addg">+ إضافة</button></div>`,
+  { wide: true, onSave: () => { applyNames(); toast("تم حفظ المجموعات"); } });
+  const refresh = () => { f.querySelector("#gl").innerHTML = rows(); };
+  f.addEventListener("click", e => {
+    const mv = e.target.closest("[data-gmove]"), del = e.target.closest("[data-gdel]");
+    applyNames();
+    if (mv) { const gs = DB[a].groups, i = gs.findIndex(g => g.id === mv.dataset.gmove), j = i + +mv.dataset.dir; if (j >= 0 && j < gs.length) { [gs[i], gs[j]] = [gs[j], gs[i]]; DB[a].groupsOrderTs = now(); refresh(); } }
+    if (del) {
+      const id = del.dataset.gdel, g = DB[a].groups.find(x => x.id === id);
+      const mids = new Set(DB[a].members.filter(m => m.groupId === id).map(m => m.id));
+      if (mids.size) {
+        const paid = a === "majlis" ? sum(DB.majlis.payments.filter(p => mids.has(p.memberId)), p => p.amount)
+                                    : sum([...mids], mid => sum(AZ.years(), y => AZ.paid(y, mid)));
+        if (!confirm(`«${g.name}» فيها ${mids.size} أعضاء${paid ? ` ومدفوعاتهم ${fmtCur(a, paid)}` : ""}.\n\nسيتم حذف المجموعة وأعضائها نهائياً${paid ? `، ويُسجَّل المبلغ في «إيرادات أخرى» باسم «مساهمات أخرى — ${g.name}» حتى لا يتغير الرصيد` : ""}.\n\nمتابعة؟`)) return;
+        const r = removeGroup(DB, a, id, `مساهمات أخرى — ${g.name}`);
+        save(); refresh(); render(); toast(`حُذفت المجموعة و${r.members} أعضاء${r.total ? ` — ${fmtCur(a, r.total)} في إيرادات أخرى` : ""}`);
+        return;
+      }
+      DB[a].groups = DB[a].groups.filter(g => g.id !== id); tomb(`${a}:groups:${id}`); refresh();
+    }
+    if (e.target.id === "addg") {
+      const name = f.querySelector("#newg").value.trim(); if (!name) return;
+      DB[a].groups.push(touch({ id: uid(a[0] + "g"), name: name.startsWith("مجموعة") ? name : "مجموعة " + name }));
+      f.querySelector("#newg").value = ""; refresh();
+    }
+  });
+}
+
+function azaStatement(mid){
+  const m = member("aza", mid), s = AZ.memberSummary(mid);
+  modal(`كشف حساب: ${m.name}`, `
+    <p class="sub" style="margin-bottom:10px">${esc(groupName("aza", m.groupId))}${m.phone ? " — " + esc(m.phone) : ""}</p>
+    <div class="kpis">${kpi("إجمالي المدفوع", money(s.paid))}${kpi("إجمالي المستحق", money(s.due))}${kpi("المتأخرات", money(s.arrears), "", s.arrears ? "bad" : "good")}</div>
+    <div class="tw"><table class="sticky1"><thead><tr><th class="n">السنة</th>${MONTHS.map(x => `<th class="n">${x.slice(0,3)}</th>`).join("")}<th class="n">المدفوع</th><th class="n">المتأخر</th><th></th></tr></thead><tbody>
+    ${s.rows.slice().reverse().map(r => `<tr><td class="n"><b>${r.y}</b></td>${AZ.row(r.y, mid).map(v => `<td class="n ${n(v) ? "" : "t-mut"}">${fmt(v)}</td>`).join("")}<td class="n"><b>${fmt(r.paid)}</b></td><td class="n">${arrearsPill(r.arrears)}</td>
+      <td>${r.paid ? `<button type="button" class="btn sm" data-act="azreceiptyear" data-m="${mid}" data-y="${r.y}">🧾 إيصال</button>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>`, { wide: true });
+}
+
+function majlisStatement(mid){
+  const m = member("majlis", mid), s = MJ.member(mid);
+  const pays = DB.majlis.payments.filter(p => p.memberId === mid);
+  const body = () => `
+    <p class="sub" style="margin-bottom:10px">${esc(groupName("majlis", m.groupId))}${m.note ? " — " + esc(m.note) : ""}</p>
+    <div class="kpis">${kpi("المطلوب", money(s.req))}${kpi("المدفوع", money(s.paid), "", "good")}${kpi("المتبقي", money(s.rem), "", s.rem ? "bad" : "good")}</div>
+    <div class="tw"><table><thead><tr><th>البند</th><th class="n">المطلوب</th><th class="n">المدفوع</th><th class="n">المتبقي</th></tr></thead><tbody>
+    ${s.plans.map(x => `<tr><td>${esc(x.p.name)}</td><td class="n">${fmt(x.req)}</td><td class="n">${fmt(x.paid)}</td><td class="n">${x.rem ? `<span class="t-bad">${fmt(x.rem)}</span>` : "0"}</td></tr>`).join("")}</tbody></table></div>
+    <h2 style="margin:16px 0 8px">سجل الدفعات (${pays.length})</h2>
+    <div class="tw" style="max-height:300px"><table><thead><tr><th>البند</th><th class="n">المبلغ</th><th>التاريخ</th><th>ملاحظة</th><th></th></tr></thead><tbody>
+    ${pays.slice().reverse().map(p => `<tr><td>${esc(DB.majlis.plans.find(x => x.id === p.planId)?.name)}</td><td class="n">${fmt(p.amount)}</td><td class="t-mut">${esc(p.date)}</td><td>${esc(p.note)}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-act="mjreceipt" data-id="${p.id}">🧾 إيصال</button><button type="button" class="btn sm ghost danger" data-act="mjdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">لا توجد دفعات</td></tr>`}
+    </tbody></table></div>
+    <div class="bar" style="margin-top:12px"><button type="button" class="btn pri" data-act="mjpayfor" data-m="${mid}">+ تسجيل دفعة</button><button type="button" class="btn" data-act="memedit" data-id="${mid}">تعديل العضو والمبالغ الخاصة</button></div>`;
+  modal(`كشف حساب: ${m.name}`, body(), { wide: true });
+}
+
+function majlisPayForm(mid, planId){
+  const m = member("majlis", mid);
+  const s = MJ.member(mid);
+  const first = planId || (s.plans.find(x => x.rem > 0) || s.plans[0]).p.id;
+  const f = modal(`تسجيل دفعة: ${m.name}`, `
+    <div class="row2">
+      <label class="fld"><span>البند</span><select class="inp" name="plan">${s.plans.map(x => `<option value="${x.p.id}" ${x.p.id === first ? "selected" : ""}>${esc(x.p.name)} — المتبقي ${fmt(x.rem)}</option>`).join("")}</select></label>
+      ${fld("المبلغ", "amount", suggestAmount(s.plans.find(x => x.p.id === first)) || "", "number", "required min=0")}
+    </div>
+    <div class="row2">${fld("التاريخ", "date", today(), "date")}${fld("ملاحظة", "note", "")}</div>`,
+  { altLabel: "حفظ وإصدار إيصال", onSave: v => {
+      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
+      const p = touch({ id: uid("mp"), memberId: mid, planId: v.plan, amount: n(v.amount), date: v.date, note: v.note, createdAt: new Date().toISOString() });
+      DB.majlis.payments.push(p);
+      toast(`تم تسجيل ${fmt(v.amount)} لـ ${m.name}`);
+      if (v.__alt) return () => majlisReceipt(p.id);
+  }});
+  f.querySelector("[name=plan]").addEventListener("change", e => {
+    f.querySelector("[name=amount]").value = suggestAmount(s.plans.find(x => x.p.id === e.target.value)) || "";
+  });
+}
+/* plans paid in instalments suggest one instalment (never more than what's left) */
+function suggestAmount(x){
+  if (!x) return 0;
+  const inst = n(x.p.installment);
+  return inst ? (x.rem > 0 ? Math.min(inst, x.rem) : inst) : x.rem;
+}
+
+function planForm(id){
+  const p = id ? DB.majlis.plans.find(x => x.id === id) : null;
+  const groupsPick = p ? "" : `
+    <div class="fld"><span>تُطبَّق على المجموعات</span>
+      <div class="muted-box" style="max-height:220px;overflow:auto">
+        <label class="fld chk" style="margin:0 0 6px"><input type="checkbox" data-allg checked><span><b>كل المجموعات</b></span></label>
+        ${DB.majlis.groups.map(g => `<label class="fld chk" style="margin:0 0 4px"><input type="checkbox" name="g_${g.id}" checked><span>${esc(shortGroup(g.name))} <span class="t-mut">(${DB.majlis.members.filter(m => m.groupId === g.id && m.active !== false).length})</span></span></label>`).join("")}
+      </div>
+      <p class="sub" style="margin-top:4px">أعضاء المجموعات غير المؤشَّرة لن يُطالبوا بهذه المساهمة. ويمكن لاحقاً إعفاء عضو معيّن من كشف حسابه.</p>
+    </div>`;
+  const f = modal(p ? "تعديل بند" : "مساهمة جديدة", `${fld("اسم المساهمة / البند", "name", p?.name, "text", 'required placeholder="مثال: الجمعية الرابعة أو صيانة المجلس"')}
+    <div class="row2">${fld("المبلغ المطلوب من كل عضو (0 = حسب الاتفاق)", "amount", p?.amount ?? "", "number", "min=0 required")}${fld("قيمة الدفعة الواحدة (اختياري)", "installment", p?.installment || "", "number", "min=0")}</div>
+    ${fld("ملاحظات", "note", p?.note)}${groupsPick}`,
+  { onSave: v => {
+      const rec = { name: v.name.trim(), amount: n(v.amount), installment: n(v.installment), note: v.note };
+      if (DB.majlis.plans.some(x => x.id !== p?.id && x.name === rec.name)) { toast("يوجد بند بنفس الاسم"); return false; }
+      if (p) { touch(Object.assign(p, rec)); toast("تم حفظ البند"); return; }
+      const np = touch({ id: uid("p"), ...rec });
+      DB.majlis.plans.push(np);
+      // members of unticked groups are not asked for this contribution
+      let excluded = 0;
+      for (const m of DB.majlis.members) if (!v["g_" + m.groupId]) {
+        DB.majlis.overrides[m.id] = { ...(DB.majlis.overrides[m.id] || {}), [np.id]: 0 };
+        DB.majlis.overridesTs[m.id] = now(); excluded++;
+      }
+      toast(`تمت إضافة «${rec.name}»${excluded ? ` — مستثنى ${excluded} عضو` : ""}`);
+  }});
+  f.querySelector("[data-allg]")?.addEventListener("change", e => f.querySelectorAll("input[name^=g_]").forEach(c => c.checked = e.target.checked));
+}
+function stageForm(id){
+  const st = id ? DB.majlis.stages.find(x => x.id === id) : null;
+  modal(st ? "تعديل مرحلة" : "مرحلة جديدة", `${fld("المرحلة", "title", st?.title, "text", "required")}${fld("المبلغ", "amount", st?.amount ?? "", "number", "min=0")}`,
+  { onSave: v => { const rec = { title: v.title.trim(), amount: n(v.amount) }; if (st) touch(Object.assign(st, rec)); else DB.majlis.stages.push(touch({ id: uid("st"), done: false, ...rec })); }});
+}
+
+/* ============================================================ phone-friendly monthly entry (العزاء) */
+function azaMonths(y, mid){
+  const m = member("aza", mid), r = DB.aza.years[y].pay[mid], fee = AZ.fee();
+  const before = r.slice();
+  const f = modal(`${m.name} — اشتراكات ${y}`, `
+    <p class="sub" style="margin-bottom:10px">${esc(shortGroup(groupName("aza", m.groupId)))} · الاشتراك الشهري ${fmt(fee)} · المتأخر هذه السنة ${fmt(AZ.arrears(y, mid))}</p>
+    <div class="mgrid">${MONTHS.map((mn, i) => `<label class="mcell ${n(r[i]) ? "paid" : ""}"><span>${mn}</span><input class="inp" name="m${i}" type="number" step="0.001" min="0" inputmode="decimal" value="${n(r[i]) ? n(r[i]) : ""}" placeholder="0"></label>`).join("")}</div>
+    <div class="bar" style="margin-top:12px"><button type="button" class="btn" data-fill="due">✓ تسديد الأشهر المستحقة</button><button type="button" class="btn" data-fill="all">✓ السنة كاملة</button></div>`,
+  { altLabel: "حفظ وإصدار إيصال", onSave: v => {
+      for (let i = 0; i < 12; i++) r[i] = n(v["m" + i]);
+      DB.aza.years[y].ts[mid] = now();
+      const newly = []; let amount = 0;
+      for (let i = 0; i < 12; i++) if (r[i] > n(before[i])) { newly.push(i); amount += r[i] - n(before[i]); }
+      toast("تم الحفظ");
+      if (v.__alt) return () => newly.length ? azaReceipt(y, mid, newly, amount) : azaYearReceipt(y, mid);
+  }});
+  f.querySelectorAll("[data-fill]").forEach(b => b.onclick = () => {
+    const k = b.dataset.fill === "all" ? 12 : (AZ.dueMonths(y) || 12);
+    f.querySelectorAll(".mcell input").forEach((inp, i) => { if (i < k && !n(inp.value)) { inp.value = fee; inp.parentElement.classList.add("paid"); } });
+  });
+  f.addEventListener("input", e => { if (e.target.matches(".mcell input")) e.target.parentElement.classList.toggle("paid", n(e.target.value) > 0); });
+}
+
+/* ============================================================ receipts */
+function fmtCur(a, v){ return `${fmt(v)} ${DB[a].settings.currency || "ر.ع"}`; }
+function monthsText(idx){
+  if (idx.length === 12) return "السنة كاملة";
+  const parts = []; let i = 0;
+  while (i < idx.length) {
+    let j = i; while (j + 1 < idx.length && idx[j + 1] === idx[j] + 1) j++;
+    parts.push(j - i >= 2 ? `${MONTHS[idx[i]]} – ${MONTHS[idx[j]]}` : idx.slice(i, j + 1).map(k => MONTHS[k]).join("، "));
+    i = j + 1;
+  }
+  return "شهر " + parts.join("، ");
+}
+function azaReceipt(y, mid, idx, amount){
+  const s = AZ.memberSummary(mid);
+  issueReceipt("aza", { memberId: mid, amount, forText: `اشتراك ${monthsText(idx)} ${y}`,
+    extra: [[`إجمالي المدفوع لعام ${y}`, fmtCur("aza", AZ.paid(y, mid))], ["إجمالي المتأخرات", s.arrears ? fmtCur("aza", s.arrears) : "لا يوجد ✓"]] });
+}
+function azaYearReceipt(y, mid){
+  const idx = AZ.row(y, mid).map((v, i) => n(v) ? i : -1).filter(i => i >= 0);
+  if (!idx.length) return toast("لا توجد مدفوعات في هذه السنة");
+  azaReceipt(y, mid, idx, AZ.paid(y, mid));
+}
+function majlisReceipt(pid){
+  const p = DB.majlis.payments.find(x => x.id === pid); if (!p) return;
+  const plan = DB.majlis.plans.find(x => x.id === p.planId), s = MJ.member(p.memberId);
+  if (!p.receiptNo) { p.receiptNo = nextReceiptNo(); touch(p); save(); }
+  issueReceipt("majlis", { no: p.receiptNo, date: p.date || today(), memberId: p.memberId, amount: p.amount,
+    forText: (plan?.name || "مساهمة") + (p.note ? ` — ${p.note}` : ""),
+    extra: [["إجمالي ما دفعه", fmtCur("majlis", s.paid)], ["المتبقي عليه", s.rem ? fmtCur("majlis", s.rem) : "لا يوجد — مكتمل ✓"]] });
+}
+function nextReceiptNo(){ DEV.seq = (DEV.seq || 0) + 1; saveDev(); return `${DEV.prefix}-${String(DEV.seq).padStart(4, "0")}`; }
+function waLink(phone, text){
+  let d = String(phone || "").replace(/\D/g, "").replace(/^00/, "");
+  if (d.length === 8) d = "968" + d;
+  return `https://wa.me/${d}?text=${encodeURIComponent(text)}`;
+}
+function receiptText(a, o){
+  const head = `${DB[a].settings.title}\n*إيصال استلام رقم ${o.no}*\nالتاريخ: ${o.date}\n`;
+  const body = o.kind === "group"
+    ? `استلمنا من: ${o.payer}\nعن أعضاء مجموعة: ${o.groupName}\nوذلك عن: ${o.forText}\n\n` +
+      o.lines.map(l => `• ${l.name}: ${fmtCur(a, l.amount)}${l.detail ? ` (${l.detail})` : ""}`).join("\n") +
+      `\n\n*الإجمالي: ${fmtCur(a, o.amount)}* — ${o.lines.length} أعضاء`
+    : `استلمنا من: ${o.name}\nالمبلغ: ${fmtCur(a, o.amount)}\nوذلك عن: ${o.forText}\n` + (o.extra || []).map(([l, v]) => `${l}: ${v}`).join("\n");
+  return head + body + `\n\nشكراً لكم وجزاكم الله خيراً\nأمين الصندوق: ${treasurer(a)}`;
+}
+const DEFAULT_TREASURER = "محمد المقبالي أبو المعتز";
+function treasurer(a){ return DB[a].settings.treasurer || DEFAULT_TREASURER; }
+function roundRect(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+async function drawReceipt(a, o){
+  try { await document.fonts?.load?.("700 30px Tajawal"); await document.fonts?.ready; } catch (e) {}
+  const W = 900, FF = 'Tajawal, "Segoe UI", Tahoma, Arial, sans-serif', font = (w, s) => `${w} ${s}px ${FF}`;
+  const c = document.createElement("canvas"), g = c.getContext("2d");
+  const wrap = (txt, maxW, f) => {
+    g.font = f; const lines = []; let line = "";
+    for (const w of String(txt ?? "").split(" ")) { const t = line ? line + " " + w : w; if (g.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+    if (line) lines.push(line); return lines.length ? lines : [""];
+  };
+  const isGroup = o.kind === "group";
+  const valFont = font(700, 34), labFont = font(500, 26);
+  const rows = (isGroup
+    ? [["استلمنا من", o.payer], ["عن أعضاء مجموعة", o.groupName], ["وذلك عن", o.forText]]
+    : [["استلمنا من", o.name], ["المجموعة", o.groupName], ["وذلك عن", o.forText], ...(o.extra || [])])
+    .map(([l, v]) => [l, wrap(v, W - 120, valFont)]);
+  const lines = isGroup ? o.lines : [];
+  const lineH = l => 54 + (l.detail ? 30 : 0);
+  const tableH = lines.length ? 80 + sum(lines, lineH) + 80 : 0;
+  const H = 520 + sum(rows, ([, ls]) => 50 + ls.length * 46) + tableH + 170;
+  c.width = W; c.height = H;
+  const accent = a === "aza" ? "#1f6f6b" : "#8a5a1c", soft = a === "aza" ? "#e3f0ee" : "#f5ecdd";
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  g.fillStyle = accent; g.fillRect(0, 0, W, 200);
+  g.direction = "rtl";
+  g.fillStyle = "#fff"; g.textAlign = "right";
+  g.font = font(800, 50); g.fillText(DB[a].settings.title, W - 50, 95);
+  g.font = font(500, 30); g.fillText(isGroup ? "إيصال استلام — دفعة مجموعة" : "إيصال استلام مبلغ", W - 50, 150);
+  g.textAlign = "left";
+  g.font = font(700, 28); g.fillText(`رقم: ${o.no}`, 50, 95);
+  g.font = font(500, 26); g.fillText(`التاريخ: ${o.date}`, 50, 150);
+  roundRect(g, 50, 240, W - 100, 220, 26); g.fillStyle = soft; g.fill();
+  g.textAlign = "center"; g.fillStyle = "#55534e"; g.font = font(500, 30);
+  g.fillText(isGroup ? `إجمالي المبلغ المستلم — ${lines.length} أعضاء` : "المبلغ المستلم", W / 2, 300);
+  g.fillStyle = accent; g.font = font(800, 88); g.fillText(fmtCur(a, o.amount), W / 2, 410);
+  let y = 530; g.textAlign = "right";
+  for (const [l, ls] of rows) {
+    g.fillStyle = "#8a877f"; g.font = labFont; g.fillText(l, W - 60, y); y += 46;
+    g.fillStyle = "#1b1b19"; g.font = valFont; for (const ln of ls) { g.fillText(ln, W - 60, y); y += 46; }
+    y += 4; g.strokeStyle = "#e4e2dc"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y - 28); g.lineTo(W - 60, y - 28); g.stroke();
+  }
+  if (lines.length) {
+    y += 20;
+    roundRect(g, 50, y - 40, W - 100, 58, 12); g.fillStyle = soft; g.fill();
+    g.fillStyle = accent; g.font = font(700, 26);
+    g.textAlign = "right"; g.fillText("العضو", W - 75, y);
+    g.textAlign = "left"; g.fillText("المبلغ", 75, y);
+    y += 62;
+    for (const l of lines) {
+      g.fillStyle = "#1b1b19"; g.font = font(700, 28);
+      g.textAlign = "right"; g.fillText(l.name, W - 75, y);
+      g.textAlign = "left"; g.fillText(fmtCur(a, l.amount), 75, y);
+      if (l.detail) { g.textAlign = "right"; g.fillStyle = "#8a877f"; g.font = font(500, 22); g.fillText(l.detail, W - 75, y + 30); }
+      const h = lineH(l);
+      g.strokeStyle = "#eeece6"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + h - 34); g.lineTo(W - 60, y + h - 34); g.stroke();
+      y += h;
+    }
+    g.fillStyle = accent; g.font = font(800, 30);
+    g.textAlign = "right"; g.fillText("الإجمالي", W - 75, y + 4);
+    g.textAlign = "left"; g.fillText(fmtCur(a, o.amount), 75, y + 4);
+  }
+  g.fillStyle = accent; g.fillRect(0, H - 12, W, 12);
+  g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 30); g.fillText("شكراً لكم وجزاكم الله خيراً", W / 2, H - 95);
+  g.fillStyle = "#55534e"; g.font = font(500, 24); g.fillText(`أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
+  return c;
+}
+/* stores a snapshot of the receipt (so a re-send shows it exactly as issued) and opens it */
+function issueReceipt(a, o){
+  let rec = o.batch ? DB[a].receipts.find(r => r.batch === o.batch) : o.no ? DB[a].receipts.find(r => r.no === o.no) : null;
+  if (!rec) {
+    const kind = o.kind || "single", extra = {};
+    if (kind === "single") { const m = member(a, o.memberId); extra.name = m?.name || ""; extra.groupName = shortGroup(groupName(a, m?.groupId)); }
+    rec = touch({ ...o, ...extra, kind, id: uid("r"), no: o.no || nextReceiptNo(), date: o.date || today() });
+    DB[a].receipts.push(rec); save();
+  }
+  return showReceipt(a, rec);
+}
+async function showReceipt(a, rec){
+  const o = { kind: "single", ...rec };
+  if (o.kind === "single" && !o.name) { const m = member(a, o.memberId); o.name = m?.name || ""; o.groupName = shortGroup(groupName(a, m?.groupId)); }
+  const contact = member(a, o.kind === "group" ? o.payerId : o.memberId);
+  const canvas = await drawReceipt(a, o);
+  const text = receiptText(a, o);
+  const f = modal(`إيصال رقم ${o.no}${o.kind === "group" ? " — دفعة مجموعة" : ""}`, `
+    <img src="${canvas.toDataURL("image/png")}" alt="صورة الإيصال" style="width:100%;max-width:440px;margin:auto;border:1px solid var(--line);border-radius:10px;display:block">
+    <label class="fld" style="margin-top:12px"><span>رقم واتساب ${o.kind === "group" ? "الدافع" : "العضو"}</span><input class="inp" name="phone" type="tel" inputmode="tel" value="${esc(contact?.phone || "")}" placeholder="مثال: 9xxxxxxx" style="direction:ltr;text-align:right"></label>
+    <div class="bar">
+      <button type="button" class="btn pri" data-r="share">📤 مشاركة الصورة (واتساب)</button>
+      <button type="button" class="btn" data-r="wa">💬 إرسال نصي</button>
+      <button type="button" class="btn" data-r="dl">⬇ تنزيل الصورة</button>
+    </div>
+    <p class="sub">على الجوال: «مشاركة الصورة» يفتح قائمة المشاركة فتختار واتساب ثم الشخص. «إرسال نصي» يفتح محادثته مباشرة برسالة الإيصال.</p>`);
+  const keepPhone = () => {
+    const ph = f.querySelector("[name=phone]").value.trim();
+    if (contact && ph !== (contact.phone || "")) { contact.phone = ph; touch(contact); save(); }
+    return ph;
+  };
+  f.addEventListener("click", async e => {
+    const b = e.target.closest("[data-r]"); if (!b) return;
+    const ph = keepPhone();
+    if (b.dataset.r === "wa") { window.open(waLink(ph, text), "_blank"); return; }
+    const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+    const fname = `إيصال ${o.no}.png`;
+    if (b.dataset.r === "dl") return download(fname, blob, "image/png");
+    const file = new File([blob], fname, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text }); return; } catch (err) { if (err.name === "AbortError") return; }
+    }
+    download(fname, blob, "image/png"); window.open(waLink(ph, text), "_blank");
+    toast("نُزّلت صورة الإيصال — أرفقها في محادثة واتساب");
+  });
+}
+
+/* ============================================================ group payments (صاحب المجموعة يدفع عن أعضائه) */
+function groupPayShell(a, title, gid, topFields, altLabel, onSave){
+  const f = modal(title, `
+    <div class="row2">
+      <label class="fld"><span>المجموعة</span><select class="inp" name="gid">${groupOptions(a, gid)}</select></label>
+      ${topFields}
+    </div>
+    <div class="row2">
+      <label class="fld"><span>الدافع (صاحب المجموعة)</span><input class="inp" name="payer" list="gp-payers" required></label>
+      ${fld("التاريخ", "date", today(), "date")}
+    </div>
+    <datalist id="gp-payers"></datalist>
+    <div id="gp-list"></div>
+    <div class="muted-box" id="gp-total" style="margin-top:10px"></div>`,
+  { wide: true, altLabel, saveLabel: "حفظ فقط", onSave });
+  return f;
+}
+function gpPayerSync(a, f, gid){
+  const g = DB[a].groups.find(x => x.id === gid);
+  f.querySelector("#gp-payers").innerHTML = DB[a].members.filter(m => m.groupId === gid).map(m => `<option value="${esc(m.name)}">`).join("");
+  f.querySelector("[name=payer]").value = g ? shortGroup(g.name) : "";
+}
+function gpTotals(a, f){
+  let tot = 0, cnt = 0;
+  f.querySelectorAll("[data-gp-row]").forEach(tr => {
+    const on = tr.querySelector("input[type=checkbox]").checked, amt = n(tr.dataset.amt ?? tr.querySelector("[data-amt]")?.value);
+    tr.classList.toggle("off", !on);
+    if (on && amt > 0) { tot += amt; cnt++; }
+  });
+  f.querySelector("#gp-total").innerHTML = `المحدَّدون: <b>${cnt}</b> — الإجمالي: <b class="num">${fmtCur(a, tot)}</b>`;
+}
+function gpPayerId(a, gid, payer){
+  return DB[a].members.find(m => m.groupId === gid && m.name === payer.trim())?.id || null;
+}
+
+function majlisGroupPay(gid){
+  gid = gid || S.group || DB.majlis.groups[0]?.id;
+  if (!gid) return toast("لا توجد مجموعات");
+  const planOpts = DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const f = groupPayShell("majlis", "دفعة مجموعة — جمعية المجلس", gid,
+    `<label class="fld"><span>البند</span><select class="inp" name="plan">${planOpts}</select></label>`,
+    "حفظ وإصدار إيصال المجموعة", v => {
+      const plan = DB.majlis.plans.find(p => p.id === v.plan), g = v.gid, payer = v.payer.trim();
+      const chosen = DB.majlis.members.filter(m => m.groupId === g && v["sel_" + m.id] && n(v["amt_" + m.id]) > 0);
+      if (!chosen.length) { toast("اختر عضواً واحداً على الأقل وأدخل المبلغ"); return false; }
+      const batch = uid("b");
+      for (const m of chosen) DB.majlis.payments.push(touch({ id: uid("mp"), memberId: m.id, planId: plan.id, amount: n(v["amt_" + m.id]), date: v.date,
+        note: `دفعة مجموعة — ${payer}`, payer, batch, createdAt: new Date().toISOString() }));
+      const total = sum(chosen, m => v["amt_" + m.id]);
+      toast(`تم تسجيل ${fmt(total)} عن ${chosen.length} أعضاء`);
+      if (v.__alt) return () => majlisBatchReceipt(batch);
+    });
+  const draw = () => {
+    const g = f.querySelector("[name=gid]").value, pid = f.querySelector("[name=plan]").value;
+    const ms = DB.majlis.members.filter(m => m.groupId === g && m.active !== false);
+    f.querySelector("#gp-list").innerHTML = `<div class="tw"><table><thead><tr><th><input type="checkbox" data-gp-all checked aria-label="الكل"></th><th>العضو</th><th class="n">المتبقي في البند</th><th class="n">المبلغ</th></tr></thead><tbody>
+      ${ms.map(m => { const x = MJ.member(m.id).plans.find(x => x.p.id === pid), sug = suggestAmount(x);
+        return `<tr data-gp-row><td><input type="checkbox" name="sel_${m.id}" ${x.rem > 0 ? "checked" : ""}></td><td class="nm">${esc(m.name)}</td>
+          <td class="n ${x.rem ? "t-bad" : "t-good"}">${x.rem ? fmt(x.rem) : "مكتمل"}</td>
+          <td class="n"><input class="inp" data-amt name="amt_${m.id}" type="number" step="0.001" min="0" inputmode="decimal" value="${x.rem > 0 ? sug : ""}" style="width:100px;text-align:center;direction:ltr"></td></tr>`; }).join("") || `<tr><td colspan="4" class="empty">لا يوجد أعضاء في هذه المجموعة</td></tr>`}
+    </tbody></table></div>`;
+    gpTotals("majlis", f);
+  };
+  f.querySelector("[name=plan]").value = DB.majlis.plans.find(p => p.installment)?.id || DB.majlis.plans[0]?.id;
+  gpPayerSync("majlis", f, gid); draw();
+  f.querySelector("[name=gid]").addEventListener("change", e => { gpPayerSync("majlis", f, e.target.value); draw(); });
+  f.querySelector("[name=plan]").addEventListener("change", draw);
+  f.addEventListener("input", e => { if (e.target.matches("[data-gp-all]")) f.querySelectorAll("[data-gp-row] input[type=checkbox]").forEach(c => c.checked = e.target.checked); gpTotals("majlis", f); });
+  f.addEventListener("change", () => gpTotals("majlis", f));
+}
+function majlisBatchReceipt(batch){
+  const existing = DB.majlis.receipts.find(r => r.batch === batch);
+  if (existing) return showReceipt("majlis", existing);
+  const ps = DB.majlis.payments.filter(p => p.batch === batch); if (!ps.length) return;
+  const m0 = member("majlis", ps[0].memberId), gid = m0?.groupId, plan = DB.majlis.plans.find(p => p.id === ps[0].planId);
+  const lines = ps.map(p => {
+    const x = MJ.member(p.memberId).plans.find(x => x.p.id === p.planId);
+    return { memberId: p.memberId, name: member("majlis", p.memberId)?.name || "", amount: p.amount, detail: x.rem ? `المتبقي عليه ${fmtCur("majlis", x.rem)}` : "مكتمل ✓" };
+  });
+  const payer = ps[0].payer || shortGroup(groupName("majlis", gid));
+  issueReceipt("majlis", { kind: "group", batch, date: ps[0].date || today(), payer, payerId: gpPayerId("majlis", gid, payer), groupId: gid,
+    groupName: shortGroup(groupName("majlis", gid)), forText: plan?.name || "مساهمة", lines, amount: sum(ps, p => p.amount) });
+}
+
+function azaGroupPay(gid){
+  const ys = AZ.years(); if (!ys.length) return toast("أضف سنة أولاً");
+  gid = gid || S.group || DB.aza.groups[0]?.id;
+  if (!gid) return toast("لا توجد مجموعات");
+  const y0 = S.year && DB.aza.years[S.year] ? S.year : ys.at(-1), fee = AZ.fee();
+  const monthSel = (name, sel) => `<select class="inp" name="${name}">${MONTHS.map((m, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${m}</option>`).join("")}</select>`;
+  const f = groupPayShell("aza", "دفعة مجموعة — جمعية العزاء", gid,
+    `<label class="fld"><span>السنة</span><select class="inp" name="y">${ys.map(y => `<option ${y === y0 ? "selected" : ""}>${y}</option>`).join("")}</select></label>
+     <label class="fld"><span>من شهر</span>${monthSel("from", 0)}</label>
+     <label class="fld"><span>إلى شهر</span>${monthSel("to", Math.max(0, (AZ.dueMonths(y0) || 12) - 1))}</label>`,
+    "حفظ وإصدار إيصال المجموعة", v => {
+      const y = +v.y, from = +v.from, to = +v.to, payer = v.payer.trim();
+      if (to < from) { toast("«إلى شهر» يجب أن يكون بعد «من شهر»"); return false; }
+      const pay = DB.aza.years[y].pay, lines = [];
+      for (const m of DB.aza.members.filter(m => m.groupId === v.gid && pay[m.id] && v["sel_" + m.id])) {
+        const r = pay[m.id], idx = [];
+        for (let i = from; i <= to; i++) if (!n(r[i])) { r[i] = fee; idx.push(i); }
+        if (!idx.length) continue;
+        DB.aza.years[y].ts[m.id] = now();
+        lines.push({ memberId: m.id, name: m.name, amount: idx.length * fee, detail: `${monthsText(idx)} ${y}` });
+      }
+      if (!lines.length) { toast("لا توجد أشهر غير مسددة للأعضاء المحدَّدين في هذه الفترة"); return false; }
+      const total = sum(lines, l => l.amount);
+      toast(`تم تسجيل ${fmt(total)} عن ${lines.length} أعضاء`);
+      if (v.__alt) return () => issueReceipt("aza", { kind: "group", batch: uid("b"), date: v.date, payer, payerId: gpPayerId("aza", v.gid, payer), groupId: v.gid,
+        groupName: shortGroup(groupName("aza", v.gid)), forText: `اشتراكات ${y}`, lines, amount: total });
+    });
+  const draw = () => {
+    const g = f.querySelector("[name=gid]").value, y = +f.querySelector("[name=y]").value;
+    const from = +f.querySelector("[name=from]").value, to = +f.querySelector("[name=to]").value;
+    const pay = DB.aza.years[y].pay;
+    const ms = DB.aza.members.filter(m => m.groupId === g && pay[m.id] && !m.exempt);
+    f.querySelector("#gp-list").innerHTML = `<div class="tw"><table><thead><tr><th><input type="checkbox" data-gp-all checked aria-label="الكل"></th><th>العضو</th><th class="n">أشهر غير مسددة في الفترة</th><th class="n">المبلغ</th></tr></thead><tbody>
+      ${ms.map(m => { const cnt = to < from ? 0 : pay[m.id].slice(from, to + 1).filter(v => !n(v)).length;
+        return `<tr data-gp-row data-amt="${cnt * fee}"><td><input type="checkbox" name="sel_${m.id}" ${cnt ? "checked" : ""}></td><td class="nm">${esc(m.name)}</td>
+          <td class="n">${cnt || `<span class="t-good">مسدد</span>`}</td><td class="n"><b>${fmt(cnt * fee)}</b></td></tr>`; }).join("") || `<tr><td colspan="4" class="empty">لا يوجد أعضاء من هذه المجموعة في سنة ${y}</td></tr>`}
+    </tbody></table></div>`;
+    gpTotals("aza", f);
+  };
+  gpPayerSync("aza", f, gid); draw();
+  f.querySelector("[name=gid]").addEventListener("change", e => { gpPayerSync("aza", f, e.target.value); draw(); });
+  ["y", "from", "to"].forEach(k => f.querySelector(`[name=${k}]`).addEventListener("change", draw));
+  f.addEventListener("input", e => { if (e.target.matches("[data-gp-all]")) f.querySelectorAll("[data-gp-row] input[type=checkbox]").forEach(c => c.checked = e.target.checked); gpTotals("aza", f); });
+  f.addEventListener("change", () => gpTotals("aza", f));
+}
+
+/* ============================================================ group status report (image + WhatsApp, like receipts) */
+function groupReportData(a, gid, flt){
+  const ms = DB[a].members.filter(m => m.groupId === gid && m.active !== false && !m.exempt);
+  let lines;
+  if (a === "aza") {
+    const ys = flt ? [+flt] : AZ.years();
+    lines = ms.map(m => {
+      const rows = ys.filter(y => AZ.row(y, m.id)).map(y => ({ y, paid: AZ.paid(y, m.id), due: AZ.due(y, m.id), arr: AZ.arrears(y, m.id) }));
+      return { id: m.id, name: m.name, req: sum(rows, r => r.due), paid: sum(rows, r => r.paid), rem: sum(rows, r => r.arr),
+        detail: rows.filter(r => r.arr > 0).map(r => flt ? `${fmt(r.arr / AZ.fee())} أشهر غير مسددة` : `${r.y}: ${fmt(r.arr)}`).join("، "), on: rows.length > 0 };
+    }).filter(l => l.on);
+  } else {
+    lines = ms.map(m => {
+      const ps = MJ.member(m.id).plans.filter(x => !flt || x.p.id === flt);
+      return { id: m.id, name: m.name, req: sum(ps, x => x.req), paid: sum(ps, x => x.paid), rem: sum(ps, x => x.rem),
+        detail: ps.filter(x => x.rem > 0).map(x => flt ? `باقي ${fmt(x.rem)} من ${fmt(x.req)}` : `${x.p.name}: ${fmt(x.rem)}`).join("، ") };
+    });
+  }
+  lines.sort((x, y) => (y.rem > 0) - (x.rem > 0) || y.rem - x.rem);
+  const req = sum(lines, l => l.req), paid = sum(lines, l => l.paid), rem = sum(lines, l => l.rem);
+  return { lines, req, paid, rem, late: lines.filter(l => l.rem > 0).length, pct: req ? Math.min(100, (req - rem) / req * 100) : 100 };
+}
+function groupReportScope(a, flt){
+  if (a === "aza") {
+    const c = AZ.cutoff(), ys = AZ.years();
+    return flt ? `اشتراكات ${flt}${+flt === c.y ? ` حتى ${MONTHS[c.m - 1]}` : ""}` : `كل السنوات من ${ys[0]} إلى ${ys.at(-1)} (حتى ${MONTHS[c.m - 1]} ${c.y})`;
+  }
+  return flt ? DB.majlis.plans.find(p => p.id === flt)?.name || "" : "جميع البنود";
+}
+function reportText(a, gname, scope, d){
+  const late = d.lines.filter(l => l.rem > 0), done = d.lines.filter(l => l.rem <= 0);
+  return `${DB[a].settings.title}\n*تقرير حالة مجموعة ${gname}*\n${scope}\nالتاريخ: ${today()}\n\n` +
+    `عدد الأعضاء: ${d.lines.length}\nإجمالي المدفوع: ${fmtCur(a, d.paid)}\nإجمالي المتبقي: ${fmtCur(a, d.rem)}\nنسبة السداد: ${d.pct.toFixed(0)}%\n` +
+    (late.length ? `\n*الأعضاء المتأخرون (${late.length}):*\n` + late.map(l => `• ${l.name}: ${fmtCur(a, l.rem)}${l.detail ? ` (${l.detail})` : ""}`).join("\n") + "\n" : "\n✅ لا يوجد متأخرون — جزاكم الله خيراً\n") +
+    (done.length && late.length ? `\n✅ المسددون بالكامل (${done.length}): ${done.map(l => l.name).join("، ")}\n` : "") +
+    `\nأمين الصندوق: ${treasurer(a)}`;
+}
+async function drawReport(a, gname, scope, d){
+  try { await document.fonts?.load?.("700 30px Tajawal"); await document.fonts?.ready; } catch (e) {}
+  const W = 900, FF = 'Tajawal, "Segoe UI", Tahoma, Arial, sans-serif', font = (w, s) => `${w} ${s}px ${FF}`;
+  const c = document.createElement("canvas"), g = c.getContext("2d");
+  const wrap = (txt, maxW, f) => {
+    g.font = f; const out = []; let line = "";
+    for (const w of String(txt ?? "").split(" ")) { const t = line ? line + " " + w : w; if (g.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; }
+    if (line) out.push(line); return out;
+  };
+  const NAME_W = W - 75 - 360, detFont = font(500, 21);
+  const laid = d.lines.map(l => ({ ...l, det: l.rem > 0 && l.detail ? wrap(l.detail, NAME_W, detFont) : [] }));
+  const lineH = l => 52 + l.det.length * 28;
+  const H = 200 + 300 + 3 * 96 + 90 + sum(laid, lineH) + 90 + 170;
+  c.width = W; c.height = H;
+  const accent = a === "aza" ? "#1f6f6b" : "#8a5a1c", soft = a === "aza" ? "#e3f0ee" : "#f5ecdd", bad = "#c23535", good = "#0c7a0c";
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  g.fillStyle = accent; g.fillRect(0, 0, W, 200);
+  g.direction = "rtl";
+  g.fillStyle = "#fff"; g.textAlign = "right";
+  g.font = font(800, 50); g.fillText(DB[a].settings.title, W - 50, 95);
+  g.font = font(500, 30); g.fillText("تقرير حالة المجموعة", W - 50, 150);
+  g.textAlign = "left"; g.font = font(500, 26); g.fillText(`التاريخ: ${today()}`, 50, 150);
+  // three stat boxes
+  const bw = (W - 100 - 2 * 20) / 3, stats = [["المدفوع", fmtCur(a, d.paid), accent], ["المتبقي", fmtCur(a, d.rem), d.rem ? bad : good], ["نسبة السداد", `${d.pct.toFixed(0)}%`, accent]];
+  stats.forEach(([l, v, col], i) => {
+    const x = W - 50 - (i + 1) * bw - i * 20;
+    roundRect(g, x, 240, bw, 200, 22); g.fillStyle = soft; g.fill();
+    g.textAlign = "center"; g.fillStyle = "#55534e"; g.font = font(500, 26); g.fillText(l, x + bw / 2, 300);
+    let size = 52; g.font = font(800, size); while (g.measureText(v).width > bw - 30 && size > 28) g.font = font(800, --size);
+    g.fillStyle = col; g.fillText(v, x + bw / 2, 385);
+  });
+  // progress bar
+  roundRect(g, 50, 462, W - 100, 14, 7); g.fillStyle = "#eeece6"; g.fill();
+  if (d.pct > 0) { const pw = (W - 100) * d.pct / 100; roundRect(g, W - 50 - pw, 462, pw, 14, 7); g.fillStyle = accent; g.fill(); }
+  let y = 560; g.textAlign = "right";
+  for (const [l, v] of [["المجموعة", gname], ["الفترة / البند", scope], ["الأعضاء", `${d.lines.length} عضو — المتأخرون: ${d.late}`]]) {
+    g.fillStyle = "#8a877f"; g.font = font(500, 24); g.fillText(l, W - 60, y);
+    g.fillStyle = "#1b1b19"; g.font = font(700, 30); g.fillText(v, W - 60, y + 40);
+    g.strokeStyle = "#e4e2dc"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + 62); g.lineTo(W - 60, y + 62); g.stroke();
+    y += 96;
+  }
+  // table
+  y += 30;
+  roundRect(g, 50, y - 40, W - 100, 58, 12); g.fillStyle = soft; g.fill();
+  g.fillStyle = accent; g.font = font(700, 25);
+  g.textAlign = "right"; g.fillText("العضو", W - 75, y);
+  g.textAlign = "center"; g.fillText("المدفوع", 285, y); g.fillText("المتبقي", 125, y);
+  y += 62;
+  for (const l of laid) {
+    let size = 27; g.font = font(700, size); while (g.measureText(l.name).width > NAME_W && size > 19) g.font = font(700, --size);
+    g.textAlign = "right"; g.fillStyle = "#1b1b19"; g.fillText(l.name, W - 75, y);
+    g.font = font(600, 26); g.textAlign = "center";
+    g.fillStyle = "#1b1b19"; g.fillText(fmt(l.paid), 285, y);
+    g.fillStyle = l.rem > 0 ? bad : good; g.font = font(800, 26); g.fillText(l.rem > 0 ? fmt(l.rem) : "✓", 125, y);
+    g.textAlign = "right"; g.fillStyle = "#8a877f"; g.font = detFont;
+    l.det.forEach((t, i) => g.fillText(t, W - 75, y + 30 + i * 28));
+    const h = lineH(l);
+    g.strokeStyle = "#eeece6"; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + h - 32); g.lineTo(W - 60, y + h - 32); g.stroke();
+    y += h;
+  }
+  g.font = font(800, 28); g.fillStyle = accent;
+  g.textAlign = "right"; g.fillText("الإجمالي", W - 75, y + 6);
+  g.textAlign = "center"; g.fillText(fmt(d.paid), 285, y + 6);
+  g.fillStyle = d.rem ? bad : good; g.fillText(fmt(d.rem), 125, y + 6);
+  g.fillStyle = accent; g.fillRect(0, H - 12, W, 12);
+  g.textAlign = "center"; g.fillStyle = "#1b1b19"; g.font = font(700, 28); g.fillText("نرجو من المتأخرين المبادرة بالسداد — وجزاكم الله خيراً", W / 2, H - 95);
+  g.fillStyle = "#55534e"; g.font = font(500, 24); g.fillText(`أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
+  return c;
+}
+async function groupReport(a, gid){
+  gid = gid || S.group || DB[a].groups[0]?.id;
+  if (!gid) return toast("لا توجد مجموعات");
+  const ys = AZ.years();
+  const fltOpts = a === "aza"
+    ? `<option value="">كل السنوات</option>` + ys.slice().reverse().map(y => `<option value="${y}" ${y === ys.at(-1) ? "selected" : ""}>${y}</option>`).join("")
+    : `<option value="">جميع البنود</option>` + DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const f = modal("تقرير حالة المجموعة", `
+    <div class="row2">
+      <label class="fld"><span>المجموعة</span><select class="inp" name="gid">${groupOptions(a, gid)}</select></label>
+      <label class="fld"><span>${a === "aza" ? "السنة" : "البند"}</span><select class="inp" name="flt">${fltOpts}</select></label>
+    </div>
+    <div id="rp-img" class="empty">جارٍ إعداد التقرير…</div>
+    <label class="fld" style="margin-top:12px"><span>رقم واتساب صاحب المجموعة</span><input class="inp" name="phone" type="tel" inputmode="tel" placeholder="مثال: 9xxxxxxx" style="direction:ltr;text-align:right"></label>
+    <div class="bar">
+      <button type="button" class="btn pri" data-r="share">📤 مشاركة الصورة (واتساب)</button>
+      <button type="button" class="btn" data-r="wa">💬 إرسال نصي</button>
+      <button type="button" class="btn" data-r="dl">⬇ تنزيل الصورة</button>
+    </div>`);
+  let canvas = null, text = "", grp = null, gname = "";
+  const draw = async () => {
+    grp = DB[a].groups.find(x => x.id === f.querySelector("[name=gid]").value);
+    gname = shortGroup(grp?.name || "");
+    const flt = f.querySelector("[name=flt]").value, d = groupReportData(a, grp.id, flt), scope = groupReportScope(a, flt);
+    canvas = await drawReport(a, gname, scope, d);
+    text = reportText(a, gname, scope, d);
+    f.querySelector("#rp-img").className = "";
+    f.querySelector("#rp-img").innerHTML = `<img src="${canvas.toDataURL("image/png")}" alt="صورة التقرير" style="width:100%;max-width:440px;margin:auto;border:1px solid var(--line);border-radius:10px;display:block">`;
+    f.querySelector("[name=phone]").value = grp.phone || "";
+  };
+  await draw();
+  f.querySelector("[name=gid]").addEventListener("change", draw);
+  f.querySelector("[name=flt]").addEventListener("change", draw);
+  f.addEventListener("click", async e => {
+    const b = e.target.closest("[data-r]"); if (!b || !canvas) return;
+    const ph = f.querySelector("[name=phone]").value.trim();
+    if (ph !== (grp.phone || "")) { grp.phone = ph; touch(grp); save(); }
+    if (b.dataset.r === "wa") { window.open(waLink(ph, text), "_blank"); return; }
+    const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+    const fname = `تقرير مجموعة ${gname} ${today()}.png`;
+    if (b.dataset.r === "dl") return download(fname, blob, "image/png");
+    const file = new File([blob], fname, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text }); return; } catch (err) { if (err.name === "AbortError") return; }
+    }
+    download(fname, blob, "image/png"); window.open(waLink(ph, text), "_blank");
+    toast("نُزّلت صورة التقرير — أرفقها في محادثة واتساب");
+  });
+}
+
+/* ============================================================ receipts log (both associations) */
+function receiptsView(){
+  const a = S.a, list = DB[a].receipts.slice().reverse();
+  return pageHead("سجل الإيصالات", "كل الإيصالات الصادرة — اضغط «عرض» لإعادة إرسال أي إيصال", printBtn + xlsBtn) + `
+  <div class="bar noprint">${searchBox()}</div>
+  <div class="card"><div class="tw"><table class="export"><thead><tr><th>رقم الإيصال</th><th>التاريخ</th><th>استلمنا من</th><th>وذلك عن</th><th class="n">المبلغ</th><th>النوع</th><th class="noprint"></th></tr></thead><tbody>
+  ${list.map(r => { const name = r.kind === "group" ? r.payer : (r.name || member(a, r.memberId)?.name || "");
+    return `<tr data-name="${esc(norm(name + " " + (r.groupName || "") + " " + r.no))}"><td class="num"><b>${esc(r.no)}</b></td><td class="t-mut">${esc(r.date)}</td><td class="nm">${esc(name)}</td><td>${esc(r.forText)}</td>
+      <td class="n"><b>${fmt(r.amount)}</b></td><td>${r.kind === "group" ? `<span class="pill warn">مجموعة · ${r.lines?.length || 0} أعضاء</span>` : `<span class="pill">فردي</span>`}</td>
+      <td class="noprint"><button class="btn sm" data-act="showrec" data-id="${r.id}">🧾 عرض</button></td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">لم تصدر إيصالات بعد</td></tr>`}
+  </tbody></table></div></div>`;
+}
+
+/* ============================================================ sync between devices (file based) */
+function syncView(){
+  let snap = false; try { snap = !!localStorage.getItem(SNAP_KEY); } catch (e) {}
+  const t = d => d ? new Date(d).toLocaleString("ar-OM-u-nu-latn") : "—";
+  return pageHead("المزامنة بين الجوال والكمبيوتر", "انقل التعديلات بين أجهزتك بملف — بدون خادم") + `
+  <div class="grid g2">
+    <div class="card"><div class="card-b syncbig">
+      <h2>① إرسال البيانات من هذا الجهاز</h2>
+      <p class="sub">يُنشئ ملف مزامنة فيه كل بيانات الجمعيتين. أرسله لنفسك عبر واتساب أو البريد أو احفظه في Google Drive.</p>
+      <button class="btn pri" data-act="syncexport">⬆ إرسال البيانات</button>
+      <p class="sub">آخر إرسال: ${t(DEV.lastExport)}</p>
+    </div></div>
+    <div class="card"><div class="card-b syncbig">
+      <h2>② استلام البيانات من الجهاز الآخر</h2>
+      <p class="sub">اختر ملف المزامنة القادم من الجهاز الآخر. تُدمج التعديلات ويُعتمد الأحدث لكل سجل، فلا يضيع ما أدخلته هنا.</p>
+      <button class="btn pri" data-act="syncimport">⬇ استلام ودمج</button>
+      <p class="sub">آخر استلام: ${t(DEV.lastImport)}${DEV.lastImportFrom ? ` (من ${esc(DEV.lastImportFrom)})` : ""}</p>
+      ${snap ? `<button class="btn" data-act="syncundo">↶ التراجع عن آخر استلام</button>` : ""}
+    </div></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><div class="card-h"><h2>طريقة الاستخدام</h2></div><div class="card-b"><ol class="steps">
+      <li>بعد إدخال بيانات على الجوال: اضغط <b>إرسال البيانات</b> واختر واتساب وأرسله لنفسك.</li>
+      <li>على الكمبيوتر: نزّل الملف من واتساب ويب، ثم <b>استلام ودمج</b> واختر الملف.</li>
+      <li>وبالعكس من الكمبيوتر إلى الجوال (على الآيفون: احفظ الملف في «الملفات» أولاً).</li>
+      <li>إذا عدّلت على الجهازين قبل المزامنة فلا مشكلة: تُجمع التعديلات، وعند تعديل نفس السجل على الجهازين يُعتمد الأحدث.</li>
+    </ol></div></div>
+    <div class="card"><div class="card-h"><h2>هذا الجهاز</h2></div><div class="card-b">
+      <div class="row2">
+        <label class="fld"><span>اسم الجهاز</span><input class="inp" data-chg="devname" value="${esc(DEV.name)}"></label>
+        <label class="fld"><span>بادئة أرقام الإيصالات</span><input class="inp" data-chg="devprefix" value="${esc(DEV.prefix)}" maxlength="4"></label>
+      </div>
+      <p class="sub">لكل جهاز بادئة مختلفة حتى لا تتكرر أرقام الإيصالات بين الجوال والكمبيوتر. آخر إيصال من هذا الجهاز: ${DEV.seq ? `${esc(DEV.prefix)}-${String(DEV.seq).padStart(4, "0")}` : "—"}</p>
+    </div></div>
+  </div>`;
+}
+
+const SYNC_LISTS = {
+  aza: ["groups", "members", "expenses", "income", "receipts"],
+  majlis: ["groups", "members", "plans", "payments", "expenses", "income", "stages", "contractorPayments", "receipts"],
+};
+/* merges R into L in place: newest change per record wins; deletions travel as tombstones */
+function mergeDB(L, R){
+  const st = { add: 0, upd: 0, del: 0 };
+  const tombs = { ...L.deleted };
+  for (const [k, t] of Object.entries(R.deleted)) if (!(tombs[k] >= t)) tombs[k] = t;
+  const dead = (key, u) => { const t = tombs[key]; return t !== undefined && t >= (u || 0); };
+  for (const a of ["aza", "majlis"]) {
+    const l = L[a], r = R[a];
+    if ((r.settingsTs || 0) > (l.settingsTs || 0)) { l.settings = r.settings; l.settingsTs = r.settingsTs; st.upd++; }
+    for (const name of SYNC_LISTS[a]) {
+      const arr = l[name] = l[name] || [];
+      const idx = new Map(arr.map((x, i) => [x.id, i]));
+      for (const item of r[name] || []) {
+        if (dead(`${a}:${name}:${item.id}`, item.u)) continue;
+        if (!idx.has(item.id)) { idx.set(item.id, arr.length); arr.push(item); st.add++; }
+        else if ((item.u || 0) > (arr[idx.get(item.id)].u || 0)) { arr[idx.get(item.id)] = item; st.upd++; }
+      }
+      const kept = arr.filter(x => !dead(`${a}:${name}:${x.id}`, x.u));
+      st.del += arr.length - kept.length; l[name] = kept;
+    }
+    if ((r.groupsOrderTs || 0) > (l.groupsOrderTs || 0)) {
+      const pos = new Map(r.groups.map((g, i) => [g.id, i]));
+      l.groups.sort((x, y) => (pos.get(x.id) ?? 1e9) - (pos.get(y.id) ?? 1e9));
+      l.groupsOrderTs = r.groupsOrderTs;
+    }
+  }
+  for (const [y, ry] of Object.entries(R.aza.years)) {
+    const ly = L.aza.years[y] = L.aza.years[y] || { pay: {}, ts: {} };
+    for (const [mid, row] of Object.entries(ry.pay)) {
+      const rt = ry.ts[mid] || 0;
+      if (dead(`aza:row:${y}:${mid}`, rt)) continue;
+      if (!ly.pay[mid]) { ly.pay[mid] = row; if (rt) ly.ts[mid] = rt; st.add++; }
+      else if (rt > (ly.ts[mid] || 0)) { ly.pay[mid] = row; ly.ts[mid] = rt; st.upd++; }
+    }
+  }
+  for (const [y, ly] of Object.entries(L.aza.years))
+    for (const mid of Object.keys(ly.pay)) if (dead(`aza:row:${y}:${mid}`, ly.ts[mid])) { delete ly.pay[mid]; delete ly.ts[mid]; st.del++; }
+  const lo = L.majlis, ro = R.majlis;
+  for (const mid of new Set([...Object.keys(ro.overrides), ...Object.keys(ro.overridesTs)])) {
+    const rt = ro.overridesTs[mid] || 0, lt = lo.overridesTs[mid] || 0;
+    if (rt > lt || (rt === lt && !lo.overrides[mid] && ro.overrides[mid])) {
+      if (JSON.stringify(lo.overrides[mid]) !== JSON.stringify(ro.overrides[mid])) st.upd++;
+      if (ro.overrides[mid]) lo.overrides[mid] = ro.overrides[mid]; else delete lo.overrides[mid];
+      if (rt) lo.overridesTs[mid] = rt;
+    }
+  }
+  L.deleted = tombs;
+  return st;
+}
+async function exportSync(){
+  const at = new Date();
+  const name = `مزامنة الجمعيات - ${DEV.name} - ${stamp()} ${String(at.getHours()).padStart(2, "0")}${String(at.getMinutes()).padStart(2, "0")}.json`;
+  const data = JSON.stringify({ ...DB, meta: {}, syncFrom: DEV.name, syncAt: at.toISOString() });
+  DEV.lastExport = at.toISOString(); saveDev(); DB.meta.lastBackup = at.toISOString(); save();
+  if (IS_MOBILE) for (const type of ["application/json", "text/plain"]) {
+    const file = new File([data], name, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "مزامنة الجمعيات الأهلية" }); render(); toast("تم الإرسال"); return; }
+      catch (e) { if (e.name === "AbortError") { render(); return; } }
+    }
+  }
+  download(name, data, "application/json"); render(); toast("تم حفظ ملف المزامنة في التنزيلات");
+}
+function pickFile(accept){
+  return new Promise(res => { const inp = document.createElement("input"); inp.type = "file"; if (accept) inp.accept = accept; inp.onchange = () => res(inp.files[0] || null); inp.click(); });
+}
+async function importSync(){
+  const file = await pickFile(IS_MOBILE ? "" : ".json,application/json");
+  if (!file) return;
+  let d = null; try { d = migrate(JSON.parse(await file.text())); } catch (e) {}
+  if (!d) return toast("هذا ليس ملف مزامنة لهذا التطبيق");
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify(DB)); } catch (e) {}
+  const st = mergeDB(DB, d);
+  DEV.lastImport = new Date().toISOString(); DEV.lastImportFrom = d.syncFrom || ""; saveDev();
+  save(); if (!S.a) S.a = "aza"; render();
+  modal("تمت المزامنة", `<p>تم دمج البيانات${d.syncFrom ? ` القادمة من <b>${esc(d.syncFrom)}</b>` : ""}${d.syncAt ? ` (أُرسلت ${new Date(d.syncAt).toLocaleString("ar-OM-u-nu-latn")})` : ""}.</p>
+    <div class="kpis">${kpi("جديد", st.add, "", "good")}${kpi("محدَّث", st.upd)}${kpi("محذوف", st.del)}</div>
+    ${st.add + st.upd + st.del ? "" : `<p class="sub">البيانات متطابقة — لا يوجد جديد.</p>`}`);
+}
+
+/* ============================================================ actions */
+const ACT = {
+  home(){ S.a = null; render(); },
+  open(d){ if (S.a !== d.a) { S.group = ""; S.q = ""; S.expYear = ""; } S.a = d.a; S.tab = "dash"; render(); scrollTo(0,0); },
+  tab(d){ if (!S.a) S.a = "aza"; S.tab = d.tab; S.q = ""; S.expYear = ""; render(); scrollTo(0,0); },
+  gosync(d, el, e){ e?.preventDefault(); S.a = S.a || "aza"; S.tab = "sync"; render(); scrollTo(0,0); },
+  print(){ window.print(); },
+  xls(){ exportXLS(); },
+  backup(){ backup(); },
+  restore(){ restore(); },
+  reset(){
+    if (!confirm(SEED ? "سيتم حذف كل التعديلات والعودة لبيانات ملفات Excel الأصلية. هل أنت متأكد؟" : "سيتم حذف كل البيانات من هذا الجهاز. هل أنت متأكد؟")) return;
+    if (!confirm("تأكيد نهائي: هل صدّرت نسخة احتياطية؟ المتابعة ستحذف البيانات الحالية.")) return;
+    const meta = DB.meta; DB = migrate(SEED ? clone(SEED) : emptyDB()); DB.meta = meta; save(); render(); toast("تمت إعادة التعيين");
+  },
+  /* sync */
+  syncexport(){ exportSync(); },
+  syncimport(){ importSync(); },
+  syncundo(){
+    let snap = null; try { snap = JSON.parse(localStorage.getItem(SNAP_KEY)); } catch (e) {}
+    if (!snap) return toast("لا توجد مزامنة للتراجع عنها");
+    if (!confirm("التراجع يعيد البيانات كما كانت قبل آخر استلام. متابعة؟")) return;
+    DB = migrate(snap); save(); try { localStorage.removeItem(SNAP_KEY); } catch (e) {}
+    render(); toast("تم التراجع عن آخر مزامنة");
+  },
+  /* aza */
+  azfill(d){
+    const y = S.year, r = DB.aza.years[y].pay[d.m], months = AZ.dueMonths(y) || 12, fee = AZ.fee();
+    for (let i = 0; i < months; i++) if (!n(r[i])) r[i] = fee;
+    DB.aza.years[y].ts[d.m] = now();
+    save(); render(); toast("تم تسديد الأشهر المستحقة — اضغط على الاسم لإصدار إيصال");
+  },
+  azrmyear(d){
+    const m = member("aza", d.m), y = S.year;
+    if (AZ.paid(y, d.m) && !confirm(`${m.name} لديه مدفوعات في ${y}. هل تريد إزالته من هذه السنة وحذف مدفوعاته فيها؟`)) return;
+    if (!AZ.paid(y, d.m) && !confirm(`إزالة ${m.name} من سنة ${y}؟`)) return;
+    delete DB.aza.years[y].pay[d.m]; delete DB.aza.years[y].ts[d.m]; tomb(`aza:row:${y}:${d.m}`);
+    save(); render();
+  },
+  azaddtoyear(){
+    const y = S.year, pay = DB.aza.years[y].pay;
+    const opts = sortedMembers("aza", m => !pay[m.id]);
+    if (!opts.length) return toast("كل الأعضاء مضافون لهذه السنة");
+    modal(`إضافة عضو إلى سنة ${y}`, `<label class="fld"><span>العضو</span><select class="inp" name="m">${opts.map(m => `<option value="${m.id}">${esc(m.name)} — ${esc(shortGroup(groupName("aza", m.groupId)))}</option>`).join("")}</select></label>
+      <p class="sub">لإضافة شخص غير موجود أصلاً استخدم «الأعضاء والمجموعات ← عضو جديد».</p>`,
+    { onSave: v => {
+        pay[v.m] = Array(12).fill(0); DB.aza.years[y].ts[v.m] = now();
+        const m = member("aza", v.m); if (!m.active) { m.active = true; touch(m); }
+    }});
+  },
+  aznewyear(){
+    const next = (AZ.years().at(-1) || new Date().getFullYear() - 1) + 1;
+    modal("إضافة سنة جديدة", `${fld("السنة", "y", next, "number", "required min=2000 max=2100 step=1")}<p class="sub">سيُضاف كل الأعضاء الفعالين إلى السنة الجديدة بمبالغ صفرية.</p>`,
+    { onSave: v => {
+        const y = String(parseInt(v.y));
+        if (DB.aza.years[y]) { toast("هذه السنة موجودة مسبقاً"); return false; }
+        const pay = {}, ts = {};
+        DB.aza.members.filter(m => m.active !== false).forEach(m => { pay[m.id] = Array(12).fill(0); ts[m.id] = now(); });
+        DB.aza.years[y] = { pay, ts }; S.year = +y; toast(`تمت إضافة سنة ${y}`);
+    }});
+  },
+  azstmt(d, el, e){ e.preventDefault(); azaStatement(d.m); },
+  azmonths(d, el, e){ e.preventDefault(); azaMonths(S.year, d.m); },
+  azreceiptyear(d){ azaYearReceipt(+d.y, d.m); },
+  /* majlis */
+  mjstmt(d, el, e){ e.preventDefault(); majlisStatement(d.m); },
+  mjpayfor(d){ majlisPayForm(d.m); },
+  mjreceipt(d){ majlisReceipt(d.id); },
+  mjgreceipt(d){ majlisBatchReceipt(d.b); },
+  mjgpay(d){ majlisGroupPay(d.g); },
+  azgpay(d){ azaGroupPay(d.g); },
+  grpreport(d){ groupReport(S.a, d.g); },
+  showrec(d){ const r = DB[S.a].receipts.find(x => x.id === d.id); if (r) showReceipt(S.a, r); },
+  mjdelpay(d){
+    const p = DB.majlis.payments.find(x => x.id === d.id); if (!p) return;
+    if (!confirm(`حذف دفعة بمبلغ ${fmt(p.amount)} لـ ${member("majlis", p.memberId)?.name}؟`)) return;
+    DB.majlis.payments = DB.majlis.payments.filter(x => x.id !== d.id); tomb(`majlis:payments:${d.id}`); save();
+    const inStmt = !!document.getElementById("ov"); closeModal(); render(); if (inStmt) majlisStatement(p.memberId);
+  },
+  mjplan(d, el, e){ e?.preventDefault(); planForm(d.id); },
+  mjdelplan(d){
+    const used = DB.majlis.payments.some(p => p.planId === d.id);
+    if (used) return toast("لا يمكن حذف بند عليه دفعات مسجلة");
+    if (!confirm("حذف هذا البند؟")) return;
+    DB.majlis.plans = DB.majlis.plans.filter(p => p.id !== d.id); tomb(`majlis:plans:${d.id}`); save(); render();
+  },
+  mjstage(d){ stageForm(d.id); },
+  mjdelstage(d){ if (!confirm("حذف هذه المرحلة؟")) return; DB.majlis.stages = DB.majlis.stages.filter(x => x.id !== d.id); tomb(`majlis:stages:${d.id}`); save(); render(); },
+  mjcontract(d, el, e){ e.preventDefault(); S.tab = "settings"; render(); },
+  /* shared */
+  ledgeradd(d){ ledgerForm(d.list); },
+  ledgeredit(d){ ledgerForm(d.list, d.id); },
+  ledgerdel(d){
+    const it = DB[S.a][d.list].find(x => x.id === d.id);
+    if (!confirm(`حذف «${it.title}» بمبلغ ${fmt(it.amount)}؟`)) return;
+    DB[S.a][d.list] = DB[S.a][d.list].filter(x => x.id !== d.id); tomb(`${S.a}:${d.list}:${d.id}`); save(); render();
+  },
+  memedit(d){ memberForm(d.id); },
+  memdel(d){
+    const a = S.a, m = member(a, d.id);
+    const has = a === "aza" ? AZ.memberSummary(m.id).paid > 0 : DB.majlis.payments.some(p => p.memberId === m.id);
+    if (has) {
+      if (confirm(`${m.name} لديه مدفوعات مسجلة ولا يمكن حذفه حفاظاً على السجلات.\nهل تريد جعله «غير فعال» بدلاً من ذلك؟`)) { m.active = false; touch(m); save(); render(); }
+      return;
+    }
+    if (!confirm(`حذف ${m.name} نهائياً؟`)) return;
+    DB[a].members = DB[a].members.filter(x => x.id !== m.id); tomb(`${a}:members:${m.id}`);
+    if (a === "aza") Object.entries(DB.aza.years).forEach(([y, yr]) => { if (yr.pay[m.id]) { delete yr.pay[m.id]; delete yr.ts[m.id]; tomb(`aza:row:${y}:${m.id}`); } });
+    else if (DB.majlis.overrides[m.id]) { delete DB.majlis.overrides[m.id]; DB.majlis.overridesTs[m.id] = now(); }
+    save(); render();
+  },
+  groups(){ groupsForm(); },
+};
+
+const CHG = {
+  year(el){ S.year = +el.value; render(); },
+  group(el){ S.group = el.value; render(); },
+  expyear(el){ S.expYear = el.value; render(); },
+  showoff(el){ S.showOff = el.checked; render(); },
+  stage(el){ const st = DB.majlis.stages.find(x => x.id === el.dataset.id); st.done = el.checked; touch(st); save(); render(); },
+  devname(el){ DEV.name = el.value.trim() || DEV.name; saveDev(); },
+  devprefix(el){ DEV.prefix = el.value.trim() || DEV.prefix; saveDev(); },
+  azcell(el){
+    const { y, m, i } = el.dataset, v = n(el.value);
+    if (v < 0) { el.value = "0"; return; }
+    DB.aza.years[y].pay[m][+i] = v; DB.aza.years[y].ts[m] = now(); save();
+    el.value = v ? fmt(v) : "0"; el.className = "cell " + (v ? "p" : "z");
+    // update totals in place
+    const r = DB.aza.years[y].pay[m];
+    document.getElementById("rt-" + m).textContent = fmt(sum(r));
+    document.getElementById("ra-" + m).innerHTML = arrearsPill(AZ.arrears(+y, m));
+    const ids = [...document.querySelectorAll("#subs tbody tr[data-g]")].map(tr => tr.querySelector("input").dataset.m);
+    MONTHS.forEach((_, k) => document.getElementById("mt-" + k).textContent = fmt(sum(ids, id => DB.aza.years[y].pay[id][k])));
+    document.getElementById("gt").textContent = fmt(sum(ids, id => sum(DB.aza.years[y].pay[id])));
+    document.getElementById("ga").textContent = fmt(sum(ids, id => AZ.arrears(+y, id)));
+  },
+};
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  const fn = ACT[el.dataset.act];
+  if (fn) fn(el.dataset, el, e);
+});
+document.addEventListener("change", e => {
+  const el = e.target.closest("[data-chg]");
+  if (el && CHG[el.dataset.chg]) CHG[el.dataset.chg](el);
+});
+document.addEventListener("input", e => {
+  if (e.target.matches("[data-search]")) { S.q = e.target.value; applySearch(); }
+  if (e.target.name === "member" && e.target.closest("[data-form=mjpay]")) payHint(e.target);
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeModal();
+  // Enter in a grid cell moves to the next month
+  if (e.key === "Enter" && e.target.classList.contains("cell")) {
+    e.preventDefault();
+    const cells = [...document.querySelectorAll(".cell")];
+    const i = cells.indexOf(e.target);
+    e.target.blur(); cells[i + 1]?.focus(); cells[i + 1]?.select();
+  }
+});
+document.addEventListener("focusin", e => { if (e.target.classList?.contains("cell")) e.target.select(); });
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-form]"); if (!f) return;
+  e.preventDefault();
+  const v = Object.fromEntries(new FormData(f));
+  if (f.dataset.form === "settings") {
+    const s = DB[S.a].settings;
+    Object.entries(v).forEach(([k, val]) => s[k] = ["monthlyFee","bankBalance","contractTotal"].includes(k) ? n(val) : val);
+    DB[S.a].settingsTs = now();
+    save(); render(); toast("تم حفظ الإعدادات");
+  }
+  if (f.dataset.form === "mjpay") {
+    const m = DB.majlis.members.find(x => x.name === v.member.trim());
+    if (!m) return toast("اختر العضو من القائمة");
+    if (!n(v.amount)) return toast("أدخل المبلغ");
+    const p = touch({ id: uid("mp"), memberId: m.id, planId: v.plan, amount: n(v.amount), date: v.date, note: v.note, createdAt: new Date().toISOString() });
+    DB.majlis.payments.push(p);
+    save(); render(); toast(`تم تسجيل ${fmt(v.amount)} لـ ${m.name}`);
+    if (e.submitter?.value === "receipt") majlisReceipt(p.id);
+  }
+});
+function payHint(inp){
+  const m = DB.majlis.members.find(x => x.name === inp.value.trim());
+  const box = document.getElementById("mjhint");
+  if (!m) { box.textContent = "اختر العضو لعرض المتبقي عليه."; return; }
+  const s = MJ.member(m.id);
+  box.innerHTML = `<b>${esc(m.name)}</b> — المدفوع ${fmt(s.paid)}، المتبقي <b class="${s.rem ? "t-bad" : "t-good"}">${fmt(s.rem)}</b><br>` +
+    s.plans.map(x => `${esc(x.p.name)}: ${fmt(x.paid)} / ${fmt(x.req)}`).join(" · ");
+  const sel = inp.form.querySelector("[name=plan]"), firstDue = s.plans.find(x => x.rem > 0);
+  if (firstDue) { sel.value = firstDue.p.id; inp.form.querySelector("[name=amount]").value = suggestAmount(firstDue); }
+  sel.onchange = () => { inp.form.querySelector("[name=amount]").value = suggestAmount(MJ.member(m.id).plans.find(x => x.p.id === sel.value)) || ""; };
+}
+function applySearch(){
+  const q = norm(S.q).trim();
+  document.querySelectorAll("tr[data-name]").forEach(tr => tr.hidden = q && !tr.dataset.name.includes(q));
+  document.querySelectorAll("tr.grp").forEach(g => {
+    let el = g.nextElementSibling, any = false;
+    while (el && !el.classList.contains("grp")) { if (!el.hidden) any = true; el = el.nextElementSibling; }
+    g.hidden = q && !any;
+  });
+}
+
+/* tooltip */
+const tip = document.getElementById("tip");
+document.addEventListener("mousemove", e => {
+  const c = e.target.closest?.("[data-tip]");
+  if (!c) { tip.style.display = "none"; return; }
+  tip.innerHTML = c.dataset.tip; tip.style.display = "block";
+  const w = tip.offsetWidth; let x = e.clientX + 14; if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+  tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px";
+});
+
+/* ============================================================ export / backup */
+function download(name, content, type){
+  const blob = new Blob([content], { type });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function stamp(){ return new Date().toISOString().slice(0,10); }
+function backup(){
+  DB.meta.lastBackup = new Date().toISOString(); save();
+  download(`نسخة احتياطية - الجمعيات الأهلية ${stamp()}.json`, JSON.stringify(DB, null, 1), "application/json");
+  render(); toast("تم تصدير النسخة الاحتياطية");
+}
+function restore(){
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    f.text().then(t => {
+      let d; try { d = JSON.parse(t); } catch (e) { return toast("الملف غير صالح"); }
+      d = migrate(d);
+      if (!d) return toast("هذا ليس ملف نسخة احتياطية لهذا التطبيق");
+      if (!confirm("سيتم استبدال كل البيانات الحالية بمحتوى النسخة الاحتياطية (للدمج استخدم «المزامنة»). متابعة؟")) return;
+      DB = d; save(); render(); toast("تم الاستيراد بنجاح");
+    });
+  };
+  inp.click();
+}
+function exportXLS(){
+  const tables = [...document.querySelectorAll("main table.export")];
+  if (!tables.length) return toast("لا يوجد جدول للتصدير في هذه الصفحة");
+  const title = document.querySelector("main h1")?.textContent || "تقرير";
+  const html = tables.map(t => {
+    const c = t.cloneNode(true);
+    c.querySelectorAll(".noprint").forEach(x => x.remove());
+    c.querySelectorAll("tr[hidden]").forEach(x => x.remove());
+    c.querySelectorAll("input").forEach(i => i.replaceWith(document.createTextNode(i.type === "checkbox" ? (i.checked ? "✓" : "") : i.value)));
+    return c.outerHTML;
+  }).join("<br>");
+  const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">
+    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>تقرير</x:Name><x:WorksheetOptions><x:DisplayRightToLeft/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+    <style>td,th{border:1px solid #bbb;padding:4px 8px;font-family:Tahoma}th{background:#eee}tr.grp td{background:#e3f0ee;font-weight:bold}tr.grand td,tr.tot td{background:#ddd;font-weight:bold}</style></head>
+    <body dir="rtl"><h2>${esc(DB[S.a].settings.title)} — ${esc(title)}</h2>${html}</body></html>`;
+  download(`${DB[S.a].settings.title} - ${title} ${stamp()}.xls`, "﻿" + doc, "application/vnd.ms-excel");
+}
+let toastT;
+function toast(msg){
+  document.querySelector(".toast")?.remove();
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
+  clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2600);
+}
+
+save(); // persist any one-time data fixes applied by migrate()
+{
+  const [a, tab] = location.hash.slice(1).split("/");
+  if (TABS[a]) { S.a = a; S.tab = TABS[a].some(t => t[0] === tab) ? tab : "dash"; }
+}
+render();
+/* installed phone app: work offline and ask the browser not to evict our data */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
+try { navigator.storage?.persist?.(); } catch (e) {}
+</script>
+</body>
+</html>
