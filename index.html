@@ -1617,7 +1617,7 @@ async function importSync(){
   const file = await pickFile(IS_MOBILE ? "" : ".json,application/json");
   if (!file) return;
   let d = null; try { d = migrate(JSON.parse(await file.text())); } catch (e) {}
-  if (!d) return toast("هذا ليس ملف مزامنة لهذا التطبيق");
+  if (!d) return modal("هذا ليس ملف مزامنة", `<p>الملف الذي اخترته «${esc(file.name)}» (${fmt(file.size / 1024)} كيلوبايت) ليس ملف مزامنة.</p><p>اختر الملف الذي يبدأ اسمه بـ <b>«مزامنة الجمعيات»</b> — حجمه عادةً أكثر من 100 كيلوبايت. إذا استلمته على واتساب تجده غالباً في مجلد <b>WhatsApp ← Documents</b> أو «التنزيلات».</p>`);
   try { localStorage.setItem(SNAP_KEY, JSON.stringify(DB)); } catch (e) {}
   const st = mergeDB(DB, d);
   DEV.lastImport = new Date().toISOString(); DEV.lastImportFrom = d.syncFrom || ""; saveDev();
