@@ -246,7 +246,7 @@ function emptyDB(){
     roscaIds: [],
     majlis: { settings: { title: "جمعية المجلس", currency: "ر.ع", contractTotal: 0 }, settingsTs: 0,
               groups: [], members: [], plans: [], overrides: {}, overridesTs: {}, payments: [], expenses: [], income: [],
-              stages: [], contractorPayments: [], receipts: [] } };
+              stages: [], contractorPayments: [], receipts: [], petty: [], pettyBuys: [] } };
 }
 /* brings data from any earlier version up to the current shape (v2 adds change-tracking for sync) */
 function migrate(d){
@@ -357,7 +357,7 @@ function sum(arr, f = x => x){ return arr.reduce((s,x) => s + n(f(x)), 0); }
 const S = { a: null, tab: "dash", year: null, group: "", q: "", showOff: false, expYear: "" };
 const TABS = {
   aza: [["dash","لوحة المعلومات"],["subs","الاشتراكات الشهرية"],["arrears","المتأخرات"],["expenses","المصروفات"],["debts","المديونية"],["income","إيرادات أخرى"],["members","الأعضاء والمجموعات"],["reports","التقارير السنوية"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
-  majlis: [["dash","لوحة المعلومات"],["contrib","المساهمات"],["pay","تسجيل دفعة"],["late","المتخلفون عن الدفع"],["expenses","مصروفات البناء"],["income","إيرادات أخرى"],["contractor","المقاول"],["members","الأعضاء والمجموعات"],["plans","بنود المساهمة"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
+  majlis: [["dash","لوحة المعلومات"],["contrib","المساهمات"],["pay","تسجيل دفعة"],["late","المتخلفون عن الدفع"],["expenses","مصروفات البناء"],["petty","المبالغ النثرية"],["income","إيرادات أخرى"],["contractor","المقاول"],["reports","التقارير"],["members","الأعضاء والمجموعات"],["plans","بنود المساهمة"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]],
 };
 
 /* ============================================================ common helpers */
@@ -427,7 +427,8 @@ const MJ = {
     const per = ms.map(m => ({ m, ...MJ.member(m.id) }));
     const paidAll = sum(DB.majlis.payments, p => p.amount);
     const exp = sum(DB.majlis.expenses, e => e.amount), inc = sum(DB.majlis.income, e => e.amount);
-    return { per, count: ms.length, req: sum(per, x => x.req), paid: paidAll, rem: sum(per, x => x.rem), exp, inc, balance: paidAll + inc - exp };
+    const petty = PETTY.totals();
+    return { per, count: ms.length, req: sum(per, x => x.req), paid: paidAll, rem: sum(per, x => x.rem), exp, inc, petty, balance: paidAll + inc - exp - petty.net };
   },
 };
 
@@ -689,7 +690,8 @@ const MJ_VIEWS = {
       ${kpi("المتبقي على الأعضاء", money(t.rem)+cur(), `${t.per.filter(x => x.rem > 0).length} عضو متأخر`, "bad")}
       ${kpi("إيرادات أخرى", money(t.inc)+cur())}
       ${kpi("مصروفات البناء", money(t.exp)+cur())}
-      ${kpi("الرصيد المتوفر", money(t.balance)+cur(), "المحصّل + الإيرادات − المصروفات", t.balance >= 0 ? "good" : "bad")}
+      ${kpi("المبالغ النثرية", money(t.petty.spent)+cur(), `<a href="#" data-act="tab" data-tab="petty">صُرف من ${fmt(t.petty.net)} مسحوب — المتبقي لدى العهدة ${fmt(t.petty.left)}</a>`)}
+      ${kpi("الرصيد المتوفر", money(t.balance)+cur(), "المحصّل + الإيرادات − المصروفات − النثرية", t.balance >= 0 ? "good" : "bad")}
       ${kpi("المدفوع للمقاول", money(cPaid)+cur(), `من أصل ${fmt(s.contractTotal)}`)}
       ${kpi("المتبقي للمقاول", money(n(s.contractTotal) - cPaid)+cur())}
     </div>
@@ -763,6 +765,8 @@ const MJ_VIEWS = {
   },
 
   expenses(){ return ledgerView("majlis", "expenses", "مصروفات بناء المجلس", "كل ما صُرف على بناء المجلس ومواده", true); },
+  petty(){ return pettyView(); },
+  reports(){ return mjReportView(); },
   income(){ return ledgerView("majlis", "income", "إيرادات أخرى", "تبرعات ومبيعات ومبالغ من خارج مساهمات الأعضاء", false); },
 
   contractor(){
@@ -1669,7 +1673,7 @@ function syncView(){
 
 const SYNC_LISTS = {
   aza: ["groups", "members", "expenses", "income", "receipts", "debts", "debtPays"],
-  majlis: ["groups", "members", "plans", "payments", "expenses", "income", "stages", "contractorPayments", "receipts"],
+  majlis: ["groups", "members", "plans", "payments", "expenses", "income", "stages", "contractorPayments", "receipts", "petty", "pettyBuys"],
 };
 /* merges R into L in place: newest change per record wins; deletions travel as tombstones */
 function mergeDB(L, R){
@@ -2329,6 +2333,170 @@ const DEBT_ACT = {
   },
 };
 
+/* ============================================================ المبالغ النثرية (جمعية المجلس)
+   petty cash: an amount is withdrawn from the balance and handed to a custodian, who spends it on purchases;
+   what is left can be returned to the fund. The balance drops once — at withdrawal — not again at each purchase */
+const PETTY = {
+  totals(){
+    const m = DB.majlis, w = sum(m.petty.filter(x => x.kind !== "return"), x => x.amount), r = sum(m.petty.filter(x => x.kind === "return"), x => x.amount);
+    const s = sum(m.pettyBuys, x => x.amount);
+    return { withdrawn: w, returned: r, spent: s, net: w - r, left: w - r - s };
+  },
+};
+function pettyView(){
+  const a = "majlis", t = PETTY.totals(), ms = DB.majlis.petty.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  const bs = DB.majlis.pettyBuys.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  return pageHead("المبالغ النثرية", "مبالغ تُسحب من رصيد الجمعية وتُسلَّم لأمين العهدة، ويُصرف منها على المشتريات الصغيرة، ويُرجَع المتبقي للصندوق.",
+    printBtn + xlsBtn + `<button class="btn" data-act="pettyadd" data-kind="return">↩ إرجاع للصندوق</button><button class="btn" data-act="pettyadd" data-kind="withdraw">− سحب من الرصيد</button><button class="btn pri" data-act="pettybuy">+ مشتريات</button>`) + `
+  <div class="kpis">
+    ${kpi("المسحوب من الرصيد", money(t.withdrawn) + cur(), `${DB.majlis.petty.filter(x => x.kind !== "return").length} سحب`, "acc")}
+    ${kpi("المصروف على المشتريات", money(t.spent) + cur(), `${DB.majlis.pettyBuys.length} عملية شراء`)}
+    ${kpi("المُرجَع للصندوق", money(t.returned) + cur())}
+    ${kpi("المتبقي لدى أمين العهدة", money(t.left) + cur(), t.left < 0 ? "المشتريات أكثر من المسحوب — سجّل سحباً بالفرق" : "نقد نثري لم يُصرف بعد", t.left < 0 ? "bad" : t.left ? "" : "good")}
+  </div>
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><h2>المشتريات</h2></div><div class="tw"><table class="export"><thead><tr><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th><th>ملاحظة</th><th class="noprint"></th></tr></thead><tbody>
+    ${bs.map(b => `<tr><td class="t-mut" style="white-space:nowrap">${esc(b.date)}</td><td>${esc(b.title)}</td><td class="n"><b>${fmt(b.amount)}</b></td><td>${esc(b.note)}</td>
+      <td class="noprint" style="white-space:nowrap"><button class="btn sm ghost" data-act="pettybuy" data-id="${b.id}">تعديل</button><button class="btn sm ghost danger" data-act="pettydel" data-list="pettyBuys" data-id="${b.id}">حذف</button></td></tr>`).join("")
+      || `<tr><td colspan="5" class="empty">لا توجد مشتريات بعد</td></tr>`}
+    </tbody><tfoot><tr class="grand"><td>المجموع</td><td></td><td class="n">${fmt(t.spent)}</td><td></td><td class="noprint"></td></tr></tfoot></table></div></div>
+    <div class="card"><div class="card-h"><h2>السحب والإرجاع</h2></div><div class="tw"><table class="export"><thead><tr><th>التاريخ</th><th>العملية</th><th class="n">المبلغ</th><th>أمين العهدة / ملاحظة</th><th class="noprint"></th></tr></thead><tbody>
+    ${ms.map(x => `<tr><td class="t-mut" style="white-space:nowrap">${esc(x.date)}</td><td>${x.kind === "return" ? `<span class="pill good">إرجاع للصندوق</span>` : `<span class="pill warn">سحب من الرصيد</span>`}</td>
+      <td class="n"><b>${fmt(x.amount)}</b></td><td>${esc(x.holder)}${x.note ? `<br><span class="t-mut">${esc(x.note)}</span>` : ""}</td>
+      <td class="noprint" style="white-space:nowrap"><button class="btn sm ghost" data-act="pettyadd" data-kind="${x.kind === "return" ? "return" : "withdraw"}" data-id="${x.id}">تعديل</button><button class="btn sm ghost danger" data-act="pettydel" data-list="petty" data-id="${x.id}">حذف</button></td></tr>`).join("")
+      || `<tr><td colspan="5" class="empty">لم يُسحب شيء بعد — ابدأ بـ «سحب من الرصيد»</td></tr>`}
+    </tbody><tfoot><tr class="grand"><td>الصافي</td><td></td><td class="n">${fmt(t.net)}</td><td></td><td class="noprint"></td></tr></tfoot></table></div></div>
+  </div>`;
+}
+function pettyForm(kind, id){
+  const a = "majlis", x = id ? DB.majlis.petty.find(y => y.id === id) : null, t = PETTY.totals(), ret = kind === "return";
+  const lastHolder = DB.majlis.petty.filter(y => y.holder).at(-1)?.holder || treasurer(a);
+  modal(ret ? (x ? "تعديل إرجاع" : "إرجاع المتبقي للصندوق") : (x ? "تعديل سحب" : "سحب مبلغ نثري من الرصيد"), `
+    ${!ret ? `<p class="sub" style="margin-bottom:10px">رصيد الجمعية المتوفر الآن: ${fmtCur(a, MJ.totals().balance)}</p>` : `<p class="sub" style="margin-bottom:10px">المتبقي لدى أمين العهدة: ${fmtCur(a, t.left)}</p>`}
+    <div class="row2">${fld("المبلغ", "amount", x ? x.amount : ret && t.left > 0 ? t.left : "", "number", "required min=0")}${fld("التاريخ", "date", x?.date || today(), "date")}</div>
+    <div class="row2">${fld(ret ? "أرجعه" : "سُلِّم إلى (أمين العهدة)", "holder", x ? x.holder : lastHolder)}${fld("ملاحظة", "note", x?.note)}</div>`,
+  { onSave: v => {
+      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
+      if (ret && !x && n(v.amount) > t.left + 0.001 && !confirm(`المبلغ أكبر من المتبقي لدى أمين العهدة (${fmt(t.left)}). متابعة؟`)) return false;
+      const rec = { kind: ret ? "return" : "withdraw", amount: n(v.amount), date: v.date, holder: v.holder.trim(), note: v.note };
+      if (x) touch(Object.assign(x, rec)); else DB.majlis.petty.push(touch({ id: uid("pt"), ...rec }));
+      toast(ret ? "تم تسجيل الإرجاع" : "تم تسجيل السحب");
+  }});
+}
+function pettyBuyForm(id){
+  const a = "majlis", b = id ? DB.majlis.pettyBuys.find(y => y.id === id) : null, left = PETTY.totals().left + (b ? n(b.amount) : 0);
+  modal(b ? "تعديل مشتريات" : "مشتريات من المبالغ النثرية", `
+    <p class="sub" style="margin-bottom:10px">المتبقي لدى أمين العهدة: <b class="${left > 0 ? "" : "t-bad"}">${fmtCur(a, left)}</b></p>
+    ${fld("البيان (ماذا اشتُري)", "title", b?.title, "text", 'required placeholder="مثال: أدوات تنظيف، ماء، كهرباء"')}
+    <div class="row2">${fld("المبلغ", "amount", b?.amount ?? "", "number", "required min=0")}${fld("التاريخ", "date", b?.date || today(), "date")}</div>
+    ${fld("ملاحظة (المحل، رقم الفاتورة…)", "note", b?.note)}`,
+  { onSave: v => {
+      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
+      if (n(v.amount) > left + 0.001 && !confirm(`المبلغ أكبر من المتبقي لدى أمين العهدة (${fmt(left)}). سجّل سحباً جديداً بالفرق لاحقاً. متابعة؟`)) return false;
+      const rec = { title: v.title.trim(), amount: n(v.amount), date: v.date, note: v.note };
+      if (b) touch(Object.assign(b, rec)); else DB.majlis.pettyBuys.push(touch({ id: uid("pb"), ...rec }));
+      toast("تم تسجيل المشتريات");
+  }});
+}
+const PETTY_ACT = {
+  pettyadd(d){ pettyForm(d.kind, d.id); },
+  pettybuy(d){ pettyBuyForm(d.id); },
+  pettydel(d){
+    const list = DB.majlis[d.list], x = list.find(y => y.id === d.id); if (!x) return;
+    if (!confirm(`حذف ${d.list === "pettyBuys" ? `«${x.title}»` : x.kind === "return" ? "الإرجاع" : "السحب"} بمبلغ ${fmt(x.amount)}؟`)) return;
+    DB.majlis[d.list] = list.filter(y => y.id !== x.id); tomb(`majlis:${d.list}:${x.id}`); save(); render();
+  },
+};
+
+/* ============================================================ التقرير السنوي / العام (جمعية المجلس)
+   year report: items dated before the year (and undated items imported from Excel) form the opening balance */
+function mjReportYears(){
+  const m = DB.majlis, ys = new Set([new Date().getFullYear()]);
+  for (const list of [m.payments, m.income, m.expenses, m.petty, m.pettyBuys, m.contractorPayments]) for (const x of list) { const y = yearOf(x.date); if (y) ys.add(y); }
+  return [...ys].sort((a, b) => b - a);
+}
+function mjReportData(Y){
+  const m = DB.majlis, inP = x => !Y || yearOf(x.date) === Y, before = x => Y && (!yearOf(x.date) || yearOf(x.date) < Y);
+  const flows = sel => {
+    const contrib = m.plans.map(p => ({ p, amt: sum(m.payments.filter(x => x.planId === p.id && sel(x)), x => x.amount) }));
+    const pettyW = sum(m.petty.filter(x => x.kind !== "return" && sel(x)), x => x.amount), pettyR = sum(m.petty.filter(x => x.kind === "return" && sel(x)), x => x.amount);
+    const contribT = sum(contrib, c => c.amt), inc = sum(m.income.filter(sel), x => x.amount), exp = sum(m.expenses.filter(sel), x => x.amount);
+    return { contrib, contribT, inc, exp, pettyNet: pettyW - pettyR, inT: contribT + inc, outT: exp + pettyW - pettyR };
+  };
+  const cur2 = flows(inP), open = Y ? flows(before) : null;
+  const opening = open ? open.inT - open.outT : 0;
+  const undated = !Y ? 0 : [m.payments, m.income, m.expenses, m.petty].reduce((s, l) => s + l.filter(x => !yearOf(x.date)).length, 0);
+  const months = Y ? MONTHS.map((_, i) => {
+    const inM = x => yearOf(x.date) === Y && +String(x.date).slice(5, 7) === i + 1;
+    return { i, in: sum(m.payments.filter(inM), x => x.amount) + sum(m.income.filter(inM), x => x.amount),
+             out: sum(m.expenses.filter(inM), x => x.amount) + sum(m.petty.filter(x => inM(x) && x.kind !== "return"), x => x.amount) - sum(m.petty.filter(x => inM(x) && x.kind === "return"), x => x.amount) };
+  }) : null;
+  const top = m.expenses.filter(inP).slice().sort((a, b) => n(b.amount) - n(a.amount)).slice(0, 10);
+  return { Y, cur: cur2, opening, closing: opening + cur2.inT - cur2.outT, undated, months, top };
+}
+function mjReportView(){
+  const a = "majlis", years = mjReportYears(), Y = S.repYear ? +S.repYear : 0, d = mjReportData(Y), c = d.cur, t = MJ.totals(), s = DB.majlis.settings;
+  const row = (label, v, cls = "", indent = false) => `<tr class="${cls}"><td style="${indent ? "padding-inline-start:28px" : ""}">${label}</td><td class="n"><b>${fmt(v)}</b></td></tr>`;
+  const title = Y ? `التقرير السنوي لعام ${Y}` : "التقرير العام";
+  const cPaid = sum(DB.majlis.contractorPayments.filter(x => !Y || yearOf(x.date) === Y || !yearOf(x.date)), x => x.amount), cTotal = n(s.contractTotal);
+  const pt = PETTY.totals();
+  const plans = DB.majlis.plans.map(p => {
+    const req = sum(t.per, x => MJ.required(x.m.id, p.id)), paid = sum(DB.majlis.payments.filter(x => x.planId === p.id), x => x.amount);
+    return `<tr><td class="nm">${esc(p.name)}</td><td class="n">${fmt(req)}</td><td class="n">${fmt(paid)}</td><td class="n ${req - paid > 0 ? "t-bad" : ""}">${fmt(Math.max(0, req - paid))}</td><td class="n">${req ? Math.min(100, paid / req * 100).toFixed(0) + "%" : "—"}</td></tr>`;
+  }).join("");
+  const groups = DB.majlis.groups.map(g => {
+    const per = t.per.filter(x => x.m.groupId === g.id); if (!per.length) return "";
+    const req = sum(per, x => x.req), paid = sum(per, x => x.paid), rem = sum(per, x => x.rem);
+    return `<tr><td class="nm">${esc(shortGroup(g.name))}</td><td class="n">${per.length}</td><td class="n">${fmt(paid)}</td><td class="n ${rem ? "t-bad" : ""}">${fmt(rem)}</td><td class="n">${per.filter(x => x.rem > 0).length}</td><td class="n">${req ? Math.min(100, paid / req * 100).toFixed(0) + "%" : "—"}</td></tr>`;
+  }).join("");
+  return pageHead(title, `${esc(s.title)} — ${Y ? `من 1 يناير إلى 31 ديسمبر ${Y}` : "منذ البداية حتى اليوم"} · تاريخ الإعداد ${today()}`, printBtn + xlsBtn) + `
+  <div class="bar noprint"><select class="inp" data-chg="repyear"><option value="">التقرير العام (كل الفترات)</option>${years.map(y => `<option value="${y}" ${y === Y ? "selected" : ""}>التقرير السنوي ${y}</option>`).join("")}</select></div>
+  ${Y && d.undated ? `<div class="note">${d.undated} عملية بدون تاريخ (من بيانات Excel الأصلية) محسوبة ضمن رصيد أول المدة.</div>` : ""}
+  <div class="kpis">
+    ${Y ? kpi("رصيد أول المدة", money(d.opening) + cur()) : ""}
+    ${kpi("إجمالي الإيرادات", money(c.inT) + cur(), Y ? `خلال ${Y}` : "", "good")}
+    ${kpi("إجمالي المصروفات", money(c.outT) + cur(), Y ? `خلال ${Y}` : "", "bad")}
+    ${kpi(Y ? "رصيد آخر المدة" : "الرصيد الحالي", money(d.closing) + cur(), "", d.closing >= 0 ? "acc" : "bad")}
+  </div>
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><h2>قائمة الإيرادات والمصروفات</h2></div><div class="tw"><table class="export">
+      ${Y ? row("رصيد أول المدة", d.opening, "tot") : ""}
+      <tr class="grp"><td colspan="2">الإيرادات</td></tr>
+      ${c.contrib.filter(x => x.amt).map(x => row(`مساهمات الأعضاء — ${esc(x.p.name)}`, x.amt, "", true)).join("") || row("مساهمات الأعضاء", 0, "", true)}
+      ${row("إيرادات أخرى", c.inc, "", true)}
+      ${row("إجمالي الإيرادات", c.inT, "tot")}
+      <tr class="grp"><td colspan="2">المصروفات</td></tr>
+      ${row("مصروفات البناء", c.exp, "", true)}
+      ${row("المبالغ النثرية (صافي المسحوب)", c.pettyNet, "", true)}
+      ${row("إجمالي المصروفات", c.outT, "tot")}
+      ${row(`صافي ${Y ? "السنة" : "الفترة"} (الإيرادات − المصروفات)`, c.inT - c.outT, "")}
+      ${row(Y ? "رصيد آخر المدة" : "الرصيد الحالي", d.closing, "grand")}
+    </table></div></div>
+    <div class="card"><div class="card-h"><h2>${Y ? `الحركة الشهرية ${Y}` : "أكبر المصروفات"}</h2></div><div class="card-b">
+      ${Y ? barChart(MONTHS.map(x => x.slice(0, 3)), [{ name: "الإيرادات", color: "var(--s1)", values: d.months.map(x => x.in) }, { name: "المصروفات", color: "var(--s2)", values: d.months.map(x => x.out) }])
+          : `<div class="tw"><table class="export"><thead><tr><th>البيان</th><th class="n">المبلغ</th></tr></thead><tbody>${d.top.map(e => `<tr><td>${esc(e.title)}</td><td class="n">${fmt(e.amount)}</td></tr>`).join("") || `<tr><td colspan="2" class="empty">لا توجد مصروفات</td></tr>`}</tbody></table></div>`}
+    </div></div>
+  </div>
+  ${Y ? `<div class="card" style="margin-top:14px"><div class="card-h"><h2>الحركة الشهرية — جدول</h2></div><div class="tw"><table class="export"><thead><tr><th>الشهر</th><th class="n">الإيرادات</th><th class="n">المصروفات</th><th class="n">الصافي</th></tr></thead><tbody>
+    ${d.months.map(x => `<tr><td>${MONTHS[x.i]}</td><td class="n">${fmt(x.in)}</td><td class="n">${fmt(x.out)}</td><td class="n ${x.in - x.out < 0 ? "t-bad" : ""}">${fmt(x.in - x.out)}</td></tr>`).join("")}
+    </tbody><tfoot><tr class="grand"><td>المجموع</td><td class="n">${fmt(sum(d.months, x => x.in))}</td><td class="n">${fmt(sum(d.months, x => x.out))}</td><td class="n">${fmt(sum(d.months, x => x.in - x.out))}</td></tr></tfoot></table></div></div>
+    ${d.top.length ? `<div class="card" style="margin-top:14px"><div class="card-h"><h2>أكبر مصروفات ${Y}</h2></div><div class="tw"><table class="export"><thead><tr><th>البيان</th><th>التاريخ</th><th class="n">المبلغ</th></tr></thead><tbody>${d.top.map(e => `<tr><td>${esc(e.title)}</td><td class="t-mut">${esc(e.date)}</td><td class="n">${fmt(e.amount)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}` : ""}
+  <div class="card" style="margin-top:14px"><div class="card-h"><h2>حالة المساهمات (حتى اليوم)</h2><span class="grow"></span><span class="pill">${t.count} عضو · ${t.per.filter(x => x.rem > 0).length} متأخر · نسبة التحصيل ${t.req ? (t.paid / t.req * 100).toFixed(1) : 0}%</span></div>
+    <div class="tw"><table class="export"><thead><tr><th>البند</th><th class="n">المطلوب</th><th class="n">المحصّل</th><th class="n">المتبقي</th><th class="n">النسبة</th></tr></thead><tbody>${plans}</tbody>
+    <tfoot><tr class="grand"><td>المجموع</td><td class="n">${fmt(t.req)}</td><td class="n">${fmt(t.paid)}</td><td class="n">${fmt(t.rem)}</td><td class="n">${t.req ? (t.paid / t.req * 100).toFixed(0) + "%" : "—"}</td></tr></tfoot></table></div></div>
+  <div class="card" style="margin-top:14px"><div class="card-h"><h2>المجموعات</h2></div><div class="tw"><table class="export"><thead><tr><th>المجموعة</th><th class="n">الأعضاء</th><th class="n">المدفوع</th><th class="n">المتبقي</th><th class="n">المتأخرون</th><th class="n">النسبة</th></tr></thead><tbody>${groups}</tbody></table></div></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><div class="card-h"><h2>المقاول</h2></div><div class="tw"><table>
+      ${row("المبلغ المتفق عليه", cTotal)}${row("المسلّم للمقاول", sum(DB.majlis.contractorPayments, x => x.amount))}${row("المتبقي للمقاول", cTotal - sum(DB.majlis.contractorPayments, x => x.amount), "tot")}
+      <tr><td>المراحل المنجزة</td><td class="n"><b>${DB.majlis.stages.filter(x => x.done).length} من ${DB.majlis.stages.length}</b></td></tr>
+    </table></div></div>
+    <div class="card"><div class="card-h"><h2>المبالغ النثرية</h2></div><div class="tw"><table>
+      ${row("المسحوب من الرصيد", pt.withdrawn)}${row("المصروف على المشتريات", pt.spent)}${row("المُرجَع للصندوق", pt.returned)}${row("المتبقي لدى أمين العهدة", pt.left, "tot")}
+    </table></div></div>
+  </div>
+  <p class="sub" style="margin-top:14px">أمين الصندوق: ${esc(treasurer(a))}</p>`;
+}
+
 /* ============================================================ actions */
 const ACT = {
   home(){ S.a = null; render(); },
@@ -2447,6 +2615,7 @@ const CHG = {
   year(el){ S.year = +el.value; render(); },
   group(el){ S.group = el.value; render(); },
   expyear(el){ S.expYear = el.value; render(); },
+  repyear(el){ S.repYear = el.value; render(); },
   showoff(el){ S.showOff = el.checked; render(); },
   stage(el){ const st = DB.majlis.stages.find(x => x.id === el.dataset.id); st.done = el.checked; touch(st); save(); render(); },
   devname(el){ DEV.name = el.value.trim() || DEV.name; saveDev(); },
@@ -2467,7 +2636,7 @@ const CHG = {
   },
 };
 
-Object.assign(ACT, RO_ACT, DEBT_ACT); Object.assign(CHG, RO_CHG);
+Object.assign(ACT, RO_ACT, DEBT_ACT, PETTY_ACT); Object.assign(CHG, RO_CHG);
 
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
