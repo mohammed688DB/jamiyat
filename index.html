@@ -2157,7 +2157,8 @@ function mergeRoscas(L, R, tombs, st){
 const DEBT = {
   paid(id){ return sum(DB.aza.debtPays.filter(p => p.debtId === id), p => p.amount); },
   rem(d){ return Math.max(0, n(d.amount) - DEBT.paid(d.id)); },
-  inst(d){ return d.mode === "monthly" && n(d.months) ? n(d.amount) / n(d.months) : n(d.amount); },
+  inst(d){ return d.mode !== "monthly" ? n(d.amount) : n(d.inst) || (n(d.months) ? n(d.amount) / n(d.months) : n(d.amount)); },
+  lastInst(d){ return n(d.amount) - DEBT.inst(d) * (n(d.months) - 1); },
   monthsDue(d){
     if (d.mode !== "monthly") return 1;
     const [y, m] = String(d.start || today().slice(0, 7)).split("-").map(Number), now2 = new Date();
@@ -2181,7 +2182,7 @@ const DEBT = {
 };
 function debtsView(){
   const a = "aza", t = DEBT.totals(), ds = DB.aza.debts.slice().sort((x, y) => DEBT.rem(y) - DEBT.rem(x));
-  const how = d => d.mode === "monthly" ? `${fmt(d.months)} شهراً × ${fmtCur(a, DEBT.inst(d))}<br><span class="t-mut">${DEBT.startLabel(d)} ← ${DEBT.endLabel(d)}</span>` : "دفعة واحدة";
+  const how = d => d.mode === "monthly" ? `${fmt(d.months)} شهراً × ${fmtCur(a, DEBT.inst(d))}${Math.abs(DEBT.lastInst(d) - DEBT.inst(d)) > 0.001 ? ` <span class="t-mut">(آخر قسط ${fmt(DEBT.lastInst(d))})</span>` : ""}<br><span class="t-mut">${DEBT.startLabel(d)} ← ${DEBT.endLabel(d)}</span>` : "دفعة واحدة";
   return pageHead("المديونية", "مبالغ صُرفت من الصندوق لغير هدف الجمعية، وتُسدَّد دفعة واحدة أو بأقساط شهرية. تفسّر الفرق بين الرصيد الدفتري والرصيد البنكي.",
     printBtn + xlsBtn + `<button class="btn pri" data-act="debtadd">+ مديونية جديدة</button>`) + `
   <div class="kpis">
@@ -2209,6 +2210,17 @@ function debtsView(){
     || `<tr><td colspan="9" class="empty">لا توجد مديونيات مسجّلة</td></tr>`}
   </tbody><tfoot><tr class="grand"><td>المجموع</td><td></td><td></td><td class="n">${fmt(t.amount)}</td><td></td><td class="n">${fmt(t.paid)}</td><td class="n">${fmt(t.outstanding)}</td><td class="n">${fmt(t.late)}</td><td class="noprint"></td></tr></tfoot></table></div></div>`;
 }
+/* monthly plan: by months → instalment = amount ÷ months; by instalment → months = amount ÷ instalment rounded up (smaller last instalment) */
+function debtPlan(amount, by, monthsIn, instIn){
+  const amt = n(amount);
+  if (by === "inst") {
+    const inst = n(instIn); if (!amt || inst <= 0) return { months: 0, inst: 0, last: 0 };
+    const months = Math.max(1, Math.ceil(amt / inst - 1e-9));
+    return { months, inst: Math.min(inst, amt), last: Math.round((amt - Math.min(inst, amt) * (months - 1)) * 1000) / 1000 };
+  }
+  const months = Math.round(n(monthsIn)); if (!amt || months < 1) return { months: 0, inst: 0, last: 0 };
+  return { months, inst: amt / months, last: amt / months };
+}
 function debtForm(id){
   const a = "aza", d = id ? DB.aza.debts.find(x => x.id === id) : null, t = DEBT.totals();
   const gap = Math.max(0, t.unexplained);
@@ -2223,27 +2235,40 @@ function debtForm(id){
     ${!d && gap ? `<button type="button" class="btn sm" data-gap style="margin:-4px 0 12px">= الفرق البنكي غير المفسَّر (${fmtCur(a, gap)})</button>` : ""}
     <div class="row2">
       <label class="fld"><span>طريقة السداد</span><select class="inp" name="mode"><option value="lump" ${d?.mode !== "monthly" ? "selected" : ""}>دفعة واحدة</option><option value="monthly" ${d?.mode === "monthly" ? "selected" : ""}>أقساط شهرية</option></select></label>
-      <label class="fld" data-m><span>عدد الأشهر</span><input class="inp" name="months" type="number" min="1" step="1" value="${d?.months || 10}"></label>
+      <label class="fld" data-m><span>طريقة الحساب</span><select class="inp" name="calcBy"><option value="months" ${d?.calcBy !== "inst" ? "selected" : ""}>حسب عدد الأشهر</option><option value="inst" ${d?.calcBy === "inst" ? "selected" : ""}>حسب قيمة القسط</option></select></label>
+    </div>
+    <div class="row2" data-m>
+      <label class="fld"><span>عدد الأشهر</span><input class="inp" name="months" type="number" min="1" step="1" value="${d?.months || 10}"></label>
+      <label class="fld"><span>قيمة القسط الشهري</span><input class="inp" name="inst" type="number" min="0" step="0.001" value="${d ? Math.round(DEBT.inst(d) * 1000) / 1000 : ""}"></label>
     </div>
     <div class="row2" data-m>${fld("يبدأ السداد من شهر", "start", d?.start || today().slice(0, 7), "month")}<div></div></div>
     <div class="muted-box" id="debt-prev"></div>`,
   { onSave: v => {
-      const who = v.who.trim(), m = DB.aza.members.find(x => x.name === who);
-      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
-      if (v.mode === "monthly" && n(v.months) < 1) { toast("أدخل عدد الأشهر"); return false; }
-      if (d && n(v.amount) < DEBT.paid(d.id)) { toast("المبلغ أقل مما سُدِّد منه"); return false; }
-      const rec = { memberId: m?.id || null, name: m ? "" : who, title: v.title.trim(), amount: n(v.amount), date: v.date,
-                    mode: v.mode, months: v.mode === "monthly" ? Math.round(n(v.months)) : 0, start: v.mode === "monthly" ? v.start : "" };
+      const who = v.who.trim(), m = DB.aza.members.find(x => x.name === who), amt = n(v.amount);
+      if (!amt) { toast("أدخل المبلغ"); return false; }
+      const p = debtPlan(amt, v.calcBy, v.months, v.inst);
+      if (v.mode === "monthly" && !p.months) { toast(v.calcBy === "inst" ? "أدخل قيمة القسط" : "أدخل عدد الأشهر"); return false; }
+      if (d && amt < DEBT.paid(d.id)) { toast("المبلغ أقل مما سُدِّد منه"); return false; }
+      const monthly = v.mode === "monthly";
+      const rec = { memberId: m?.id || null, name: m ? "" : who, title: v.title.trim(), amount: amt, date: v.date, mode: v.mode,
+                    calcBy: monthly ? v.calcBy : "", months: monthly ? p.months : 0, inst: monthly && v.calcBy === "inst" ? p.inst : 0, start: monthly ? v.start : "" };
       if (d) touch(Object.assign(d, rec)); else DB.aza.debts.push(touch({ id: uid("db"), ...rec }));
       toast("تم حفظ المديونية");
   }});
+  const q = s => f.querySelector(s);
+  // whichever of months / instalment drives the calculation, the other one is filled in automatically
   const prev = () => {
-    const monthly = f.querySelector("[name=mode]").value === "monthly";
+    const monthly = q("[name=mode]").value === "monthly", by = q("[name=calcBy]").value;
     f.querySelectorAll("[data-m]").forEach(x => x.style.display = monthly ? "" : "none");
-    const amt = n(f.querySelector("[name=amount]").value), mo = Math.max(1, Math.round(n(f.querySelector("[name=months]").value)));
-    f.querySelector("#debt-prev").innerHTML = !amt ? "أدخل المبلغ لعرض طريقة السداد." : monthly
-      ? `القسط الشهري: <b>${fmtCur(a, amt / mo)}</b> لمدة ${mo} شهراً، من ${DEBT.startLabel({ start: f.querySelector("[name=start]").value })} إلى ${DEBT.endLabel({ mode: "monthly", start: f.querySelector("[name=start]").value, months: mo })}`
-      : `يُسدَّد المبلغ كاملاً (${fmtCur(a, amt)}) دفعة واحدة.`;
+    const amt = n(q("[name=amount]").value), p = debtPlan(amt, by, q("[name=months]").value, q("[name=inst]").value);
+    const auto = by === "inst" ? q("[name=months]") : q("[name=inst]"), manual = by === "inst" ? q("[name=inst]") : q("[name=months]");
+    auto.readOnly = true; auto.style.background = "var(--surface-2)"; manual.readOnly = false; manual.style.background = "";
+    if (amt && p.months) auto.value = by === "inst" ? p.months : Math.round(p.inst * 1000) / 1000;
+    const start = q("[name=start]").value;
+    q("#debt-prev").innerHTML = !amt ? "أدخل المبلغ لعرض طريقة السداد." : !monthly ? `يُسدَّد المبلغ كاملاً (${fmtCur(a, amt)}) دفعة واحدة.`
+      : !p.months ? (by === "inst" ? "أدخل قيمة القسط ليُحسب عدد الأشهر." : "أدخل عدد الأشهر ليُحسب القسط.")
+      : `القسط الشهري: <b>${fmtCur(a, p.inst)}</b> لمدة <b>${p.months}</b> شهراً${Math.abs(p.last - p.inst) > 0.001 ? ` (آخر قسط ${fmtCur(a, p.last)})` : ""}<br>
+         من ${DEBT.startLabel({ start })} إلى ${DEBT.endLabel({ mode: "monthly", start, months: p.months })}`;
   };
   f.addEventListener("input", prev); f.addEventListener("change", prev);
   f.querySelector("[data-gap]")?.addEventListener("click", () => { f.querySelector("[name=amount]").value = Math.round(gap * 1000) / 1000; prev(); });
