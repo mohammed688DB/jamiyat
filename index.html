@@ -1239,7 +1239,16 @@ function nextReceiptNo(){ DEV.seq = (DEV.seq || 0) + 1; saveDev(); return `${DEV
 function waLink(phone, text){
   let d = String(phone || "").replace(/\D/g, "").replace(/^00/, "");
   if (d.length === 8) d = "968" + d;
-  return `https://wa.me/${d}?text=${encodeURIComponent(text)}`;
+  // very long links are rejected (HTTP 400): keep the message under a safe length, the image carries the full detail
+  const MAX = 1800, tail = "\n… التفاصيل كاملة في الصورة";
+  let msg = String(text || "");
+  if (encodeURIComponent(msg).length > MAX) {
+    const lines = msg.split("\n");
+    while (lines.length > 1 && encodeURIComponent(lines.join("\n") + tail).length > MAX) lines.pop();
+    msg = lines.join("\n") + tail;
+    while (encodeURIComponent(msg).length > MAX) msg = msg.slice(0, -20);
+  }
+  return `https://wa.me/${d}?text=${encodeURIComponent(msg)}`;
 }
 function receiptText(a, o){
   const head = `${DB[a].settings.title}\n*${o.payout ? "إيصال تسليم مبلغ الجمعية" : o.inst ? "إيصال استلام قسط شهري" : "إيصال استلام"} رقم ${o.no}*\nالتاريخ: ${o.date}\n`;
