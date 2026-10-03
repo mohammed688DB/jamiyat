@@ -30,6 +30,7 @@ body{background:var(--page);color:var(--ink);font-family:Tajawal,"Segoe UI",Taho
 body.aza{--accent:var(--aza);--accent-soft:var(--aza-soft)}
 body.majlis{--accent:var(--majlis);--accent-soft:var(--majlis-soft)}
 body.rosca{--accent:#3d4f91;--accent-soft:#e7eaf6}
+body.contrib2{--accent:#2f6d3a;--accent-soft:#e4f0e5}
 button,input,select,textarea{font:inherit;color:inherit}
 .num,td.n,th.n{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:plaintext}
 a{color:var(--accent)}
@@ -239,11 +240,19 @@ const MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","
 const DEV_KEY = "ahliya-device";
 const SNAP_KEY = "ahliya-before-sync";
 
+let MK = "majlis";   // the المجلس-type association currently shown (جمعية المجلس, جمعية المسجد, …)
+function isContrib(a){ return a === "majlis" || (typeof a === "string" && a.startsWith("c_") && !!DB?.[a]); }
+const ASSET_TYPES = ["رهن", "طناء", "بيع"];
+function newContrib(title){
+  const c = JSON.parse(JSON.stringify(emptyDB().majlis));
+  c.settings.title = title; c.settingsTs = Date.now(); c.assets = []; c.assetTypes = ASSET_TYPES.slice();
+  return c;
+}
 function emptyDB(){
   return { version: 2, deleted: {}, meta: {},
     aza: { settings: { title: "جمعية العزاء", monthlyFee: 2, bankBalance: 0, currency: "ر.ع" }, settingsTs: 0,
            groups: [], members: [], years: {}, expenses: [], income: [], receipts: [], debts: [], debtPays: [] },
-    roscaIds: [],
+    roscaIds: [], contribIds: [],
     majlis: { settings: { title: "جمعية المجلس", currency: "ر.ع", contractTotal: 0 }, settingsTs: 0,
               groups: [], members: [], plans: [], overrides: {}, overridesTs: {}, payments: [], expenses: [], income: [],
               stages: [], contractorPayments: [], receipts: [], petty: [], pettyBuys: [] } };
@@ -253,6 +262,17 @@ function migrate(d){
   if (!d || typeof d !== "object" || !d.aza || !d.majlis) return null;
   const e = emptyDB();
   for (const a of ["aza", "majlis"]) for (const [k, v] of Object.entries(e[a])) if (d[a][k] === undefined) d[a][k] = (d.version === 1 && k === "settingsTs") ? 1 : v;
+  // more associations with المجلس's system (c_…): same shape + the association's own funds (رهن / طناء / بيع)
+  d.contribIds = (d.contribIds || []).filter(k => d[k]);
+  for (const k of d.contribIds) {
+    for (const [f, v] of Object.entries(e.majlis)) if (d[k][f] === undefined) d[k][f] = JSON.parse(JSON.stringify(v));
+    d[k].assets = d[k].assets || []; d[k].assetTypes = d[k].assetTypes || ASSET_TYPES.slice();
+  }
+  d.fixes = d.fixes || {};
+  if (!d.fixes.masjid1) {   // one-time: جمعية المسجد (fixed key so both devices agree)
+    if (!d.c_masjid && !(d.deleted || {})["assoc:c_masjid"]) { d.c_masjid = newContrib("جمعية المسجد"); d.c_masjid.settingsTs = 0; d.contribIds.push("c_masjid"); }
+    d.fixes.masjid1 = true;
+  }
   for (const y of Object.values(d.aza.years)) y.ts = y.ts || {};
   d.deleted = d.deleted || {}; d.meta = d.meta || {};
   // the old "قائمة التعزيز" plan became "الجمعية الثالثة": 100 per member, paid in instalments of 20
@@ -266,7 +286,7 @@ function migrate(d){
     d.fixes.khalifa = true;
   }
   // currencies with digits in them (e.g. "20ر.ع") are cleaned, and receipts already issued are corrected too
-  for (const k of ["aza", "majlis", ...(d.roscaIds || [])]) {
+  for (const k of ["aza", "majlis", ...(d.contribIds || []), ...(d.roscaIds || [])]) {
     const st = d[k] && d[k].settings; if (!st) continue;
     const old = st.currency, cc = cleanCurrency(old);
     if (old !== undefined && cc !== old) {
@@ -302,7 +322,7 @@ function removeGroup(d, a, gid, incomeTitle, incomeId){
   const ts = Date.now(), L = d[a];
   const mids = L.members.filter(m => m.groupId === gid).map(m => m.id), set = new Set(mids);
   let total = 0;
-  if (a === "majlis") {
+  if (a !== "aza") {
     const ps = L.payments.filter(p => set.has(p.memberId));
     total = sum(ps, p => p.amount);
     ps.forEach(p => d.deleted[`majlis:payments:${p.id}`] = ts);
@@ -412,43 +432,59 @@ const AZ = {
 /* ============================================================ جمعية المجلس — calculations */
 const MJ = {
   required(mid, pid){
-    const o = DB.majlis.overrides[mid];
+    const o = DB[MK].overrides[mid];
     if (o && o[pid] !== undefined && o[pid] !== null && o[pid] !== "") return n(o[pid]);
-    const m = member("majlis", mid); if (m && m.exempt) return 0;
-    const p = DB.majlis.plans.find(p => p.id === pid); return p ? n(p.amount) : 0;
+    const m = member(MK, mid); if (m && m.exempt) return 0;
+    const p = DB[MK].plans.find(p => p.id === pid); return p ? n(p.amount) : 0;
   },
-  paid(mid, pid){ return sum(DB.majlis.payments.filter(p => p.memberId === mid && (!pid || p.planId === pid)), p => p.amount); },
+  paid(mid, pid){ return sum(DB[MK].payments.filter(p => p.memberId === mid && (!pid || p.planId === pid)), p => p.amount); },
   member(mid){
-    const plans = DB.majlis.plans.map(p => { const req = MJ.required(mid, p.id), paid = MJ.paid(mid, p.id); return { p, req, paid, rem: Math.max(0, req - paid) }; });
+    const plans = DB[MK].plans.map(p => { const req = MJ.required(mid, p.id), paid = MJ.paid(mid, p.id); return { p, req, paid, rem: Math.max(0, req - paid) }; });
     return { plans, req: sum(plans, x => x.req), paid: sum(plans, x => x.paid), rem: sum(plans, x => x.rem) };
   },
   totals(){
-    const ms = DB.majlis.members.filter(m => m.active !== false);
+    const ms = DB[MK].members.filter(m => m.active !== false);
     const per = ms.map(m => ({ m, ...MJ.member(m.id) }));
-    const paidAll = sum(DB.majlis.payments, p => p.amount);
-    const exp = sum(DB.majlis.expenses, e => e.amount), inc = sum(DB.majlis.income, e => e.amount);
+    const paidAll = sum(DB[MK].payments, p => p.amount);
+    const assets = assetsTotal(DB[MK]), exp = sum(DB[MK].expenses, e => e.amount), inc = sum(DB[MK].income, e => e.amount) + assets;
     const petty = PETTY.totals();
-    return { per, count: ms.length, req: sum(per, x => x.req), paid: paidAll, rem: sum(per, x => x.rem), exp, inc, petty, balance: paidAll + inc - exp - petty.net };
+    return { per, count: ms.length, req: sum(per, x => x.req), paid: paidAll, rem: sum(per, x => x.rem), exp, inc, assets, petty, balance: paidAll + inc - exp - petty.net };
   },
 };
 
 /* ============================================================ rendering shell */
 function render(){
-  document.body.className = S.a ? (isRosca(S.a) ? "rosca" : S.a) : "";
+  if (isContrib(S.a)) MK = S.a;
+  document.body.className = S.a ? (isRosca(S.a) ? "rosca" : S.a === "aza" || S.a === "majlis" ? S.a : "contrib2") : "";
   const h = S.a ? `#${S.a}/${S.tab}` : "#";
   if (location.hash !== h) history.replaceState(null, "", h);
   const app = document.getElementById("app");
   if (!S.a) { app.innerHTML = homeView() + credit(); return; }
-  const view = S.tab === "sync" ? syncView : S.tab === "receipts" ? receiptsView : (S.a === "aza" ? AZA_VIEWS : S.a === "majlis" ? MJ_VIEWS : RO_VIEWS)[S.tab] || (() => "");
+  const view = S.tab === "sync" ? syncView : S.tab === "receipts" ? receiptsView : (S.a === "aza" ? AZA_VIEWS : isContrib(S.a) ? MJ_VIEWS : RO_VIEWS)[S.tab] || (() => "");
   app.innerHTML = shell(view());
   applySearch();
+  if (S.tab === "sync") storageInfo();
+}
+/* where the data lives: this device's storage; ask the browser to keep it (not evict it when space runs low) */
+async function storageInfo(){
+  const box = document.getElementById("storinfo"); if (!box) return;
+  const kb = Math.round((localStorage.getItem(LS_KEY) || "").length * 2 / 1024);
+  let persisted = null, quota = "";
+  try { persisted = await navigator.storage?.persisted?.(); } catch (e) {}
+  try { const est = await navigator.storage?.estimate?.(); if (est?.quota) quota = ` من مساحة متاحة تقارب ${Math.round(est.quota / 1048576).toLocaleString("en-US")} ميجابايت`; } catch (e) {}
+  if (!document.body.contains(box)) return;
+  box.innerHTML = `حجم البيانات: <b>${kb.toLocaleString("en-US")} كيلوبايت</b>${quota}.<br>` +
+    (persisted === true ? `<span class="t-good">✓ الحفظ دائم: المتصفح لن يحذف البيانات تلقائياً.</span>`
+     : persisted === false ? `<span class="t-bad">الحفظ غير محمي بعد: قد يحذفها المتصفح عند امتلاء الذاكرة.</span> <button class="btn sm" data-act="persist">طلب الحفظ الدائم</button>`
+     : `<span class="t-mut">لا يدعم هذا المتصفح فحص الحفظ الدائم.</span>`) +
+    `<br><span class="t-mut">مهما كان الحفظ، أرسل نسخة (⬆ إرسال البيانات) بانتظام — هي نسختك الاحتياطية إذا ضاع الجهاز أو مُسحت بيانات المتصفح.</span>`;
 }
 function shell(content){
   const t = DB[S.a].settings.title;
   return `
   <header class="top">
     <div class="top-in">
-      <button class="brand" data-act="home"><span class="logo">${S.a === "aza" ? "☾" : S.a === "majlis" ? "⌂" : "◎"}</span><span>${esc(t)}<small>تطبيق محاسبة الجمعيات الأهلية</small></span></button>
+      <button class="brand" data-act="home"><span class="logo">${S.a === "aza" ? "☾" : S.a === "majlis" ? "⌂" : isContrib(S.a) ? "۩" : "◎"}</span><span>${esc(t)}<small>تطبيق محاسبة الجمعيات الأهلية</small></span></button>
       <div class="switch" role="tablist">${assocList().map(k => `<button class="${S.a === k ? "on" : ""}" data-act="open" data-a="${k}">${esc(DB[k].settings.title)}</button>`).join("")}</div>
       <button class="btn sm topsync" data-act="tab" data-tab="sync" title="المزامنة بين الأجهزة">⇅ مزامنة</button>
     </div>
@@ -460,7 +496,7 @@ function credit(){ return `<footer class="credit">إعداد وتصميم: <b>م
 function backupNag(){
   const last = DB.meta.lastBackup ? new Date(DB.meta.lastBackup) : null;
   const days = last ? (Date.now() - last) / 864e5 : Infinity;
-  if (days < 30 || S.tab === "sync" || (!DB.aza.members.length && !DB.majlis.members.length)) return "";
+  if (days < 30 || S.tab === "sync" || (!DB.aza.members.length && !DB[MK].members.length)) return "";
   return `<div class="note noprint">البيانات محفوظة على هذا الجهاز فقط. ${last ? "مضى أكثر من شهر على آخر إرسال أو نسخة احتياطية." : "لم تُرسَل أي نسخة بعد."} <button class="btn sm" data-act="gosync">⇅ إرسال نسخة الآن</button></div>`;
 }
 function pageHead(title, sub, actions = ""){
@@ -486,7 +522,7 @@ function barChart(labels, series){
 
 /* ============================================================ home */
 function homeView(){
-  if (!DB.aza.members.length && !DB.majlis.members.length) return `<div class="home">
+  if (!DB.aza.members.length && !DB[MK].members.length) return `<div class="home">
     <h1>الجمعيات الأهلية</h1>
     <p class="sub">مرحباً — هذا الجهاز لا يحتوي على بيانات بعد</p>
     <div class="card" style="max-width:560px;margin:auto"><div class="card-b syncbig">
@@ -510,13 +546,14 @@ function homeView(){
         <dl><div><dt>الرصيد الدفتري</dt><dd>${money(a.balance)}</dd></div><div><dt>المتأخرات</dt><dd class="t-bad">${money(a.arrears)}</dd></div>
         <div><dt>الأعضاء الفعالون</dt><dd>${DB.aza.members.filter(m => m.active && !m.exempt).length}</dd></div><div><dt>المصروفات</dt><dd>${money(a.exp)}</dd></div></dl>
       </button>
-      <button class="acard" data-act="open" data-a="majlis">
-        <div class="ic" style="background:var(--majlis)">⌂</div>
-        <h2>${esc(DB.majlis.settings.title)}</h2>
-        <p>مساهمات بناء مجلس البلدة — ${DB.majlis.plans.length} بنود مساهمة ومتابعة المقاول</p>
+      ${["majlis", ...(DB.contribIds || []).filter(k => DB[k])].map(k => { const keep = MK; MK = k; const m = MJ.totals(), c = DB[k]; MK = keep;
+        return `<button class="acard" data-act="open" data-a="${k}">
+        <div class="ic" style="background:${accentOf(k)[0]}">${k === "majlis" ? "⌂" : "۩"}</div>
+        <h2>${esc(c.settings.title)}</h2>
+        <p>${k === "majlis" ? `مساهمات بناء مجلس البلدة — ${c.plans.length} بنود مساهمة ومتابعة المقاول` : `مساهمات الأعضاء${(c.assets || []).length ? " وأموال " + esc(c.settings.title.replace(/^جمعية\s*/, "")) : ""} — ${c.members.length} عضواً`}</p>
         <dl><div><dt>المحصّل</dt><dd>${money(m.paid)}</dd></div><div><dt>المتبقي على الأعضاء</dt><dd class="t-bad">${money(m.rem)}</dd></div>
         <div><dt>الأعضاء</dt><dd>${m.count}</dd></div><div><dt>الرصيد</dt><dd>${money(m.balance)}</dd></div></dl>
-      </button>
+      </button>`; }).join("")}
       ${(DB.roscaIds || []).filter(k => DB[k]).map(k => {
         const r = DB[k], t = RO.totals(r), sc = RO.schedule(r), N = RO.N(r);
         const next = RO.shares(r).filter(s => !s.paidOut).sort((x, y) => (sc.month[x.id] ?? 1e9) - (sc.month[y.id] ?? 1e9))[0];
@@ -671,25 +708,26 @@ function groupYearTable(){
 /* ============================================================ MAJLIS views */
 const MJ_VIEWS = {
   dash(){
-    const t = MJ.totals(), s = DB.majlis.settings;
-    const cPaid = sum(DB.majlis.contractorPayments, p => p.amount);
-    const plans = DB.majlis.plans.map(p => {
-      const req = sum(t.per, x => MJ.required(x.m.id, p.id)), paid = sum(DB.majlis.payments.filter(x => x.planId === p.id), x => x.amount);
+    const t = MJ.totals(), s = DB[MK].settings;
+    const cPaid = sum(DB[MK].contractorPayments, p => p.amount);
+    const plans = DB[MK].plans.map(p => {
+      const req = sum(t.per, x => MJ.required(x.m.id, p.id)), paid = sum(DB[MK].payments.filter(x => x.planId === p.id), x => x.amount);
       return `<tr><td class="nm">${esc(p.name)}</td><td class="n">${fmt(p.amount)}</td><td class="n">${fmt(req)}</td><td class="n">${fmt(paid)}</td>
         <td class="n ${req - paid > 0 ? "t-bad" : ""}">${fmt(Math.max(0, req - paid))}</td><td style="min-width:120px">${req ? progress(paid / req * 100) : `<span class="t-mut">حسب الاتفاق</span>`}</td></tr>`;
     }).join("");
-    const gl = DB.majlis.groups.map(g => {
+    const gl = DB[MK].groups.map(g => {
       const per = t.per.filter(x => x.m.groupId === g.id); if (!per.length) return "";
       const req = sum(per, x => x.req), paid = sum(per, x => x.paid), rem = sum(per, x => x.rem);
       return `<tr><td class="nm">${esc(shortGroup(g.name))}</td><td class="n">${per.length}</td><td class="n">${fmt(paid)}</td><td class="n ${rem ? "t-bad" : ""}">${fmt(rem)}</td><td style="min-width:110px">${progress(req ? paid / req * 100 : 100)}</td><td><button class="btn sm" data-act="grpreport" data-g="${g.id}">📊</button></td></tr>`;
     }).join("");
-    return pageHead("لوحة المعلومات", "ملخص مساهمات الأعضاء ومصروفات بناء المجلس") + `
+    return pageHead("لوحة المعلومات", MK === "majlis" ? "ملخص مساهمات الأعضاء ومصروفات بناء المجلس" : `ملخص مساهمات الأعضاء و${assetsTitle(MK)} والمصروفات`) + `
     <div class="kpis">
       ${kpi("المبلغ المطلوب من الأعضاء", money(t.req)+cur(), `${t.count} عضو`, "acc")}
       ${kpi("المحصّل من الأعضاء", money(t.paid)+cur(), `نسبة التحصيل ${t.req ? (t.paid / t.req * 100).toFixed(1) : 0}%`, "good")}
       ${kpi("المتبقي على الأعضاء", money(t.rem)+cur(), `${t.per.filter(x => x.rem > 0).length} عضو متأخر`, "bad")}
-      ${kpi("إيرادات أخرى", money(t.inc)+cur())}
-      ${kpi("مصروفات البناء", money(t.exp)+cur())}
+      ${t.assets || DB[MK].assetTypes ? kpi(assetsTitle(MK), money(t.assets)+cur(), `<a href="#" data-act="tab" data-tab="assets">رهن · طناء · بيع</a>`) : ""}
+      ${kpi("إيرادات أخرى", money(t.inc - t.assets)+cur())}
+      ${kpi(MK === "majlis" ? "مصروفات البناء" : "المصروفات", money(t.exp)+cur())}
       ${kpi("المبالغ النثرية", money(t.petty.spent)+cur(), `<a href="#" data-act="tab" data-tab="petty">صُرف من ${fmt(t.petty.net)} مسحوب — المتبقي لدى العهدة ${fmt(t.petty.left)}</a>`)}
       ${kpi("الرصيد المتوفر", money(t.balance)+cur(), "المحصّل + الإيرادات − المصروفات − النثرية", t.balance >= 0 ? "good" : "bad")}
       ${kpi("المدفوع للمقاول", money(cPaid)+cur(), `من أصل ${fmt(s.contractTotal)}`)}
@@ -702,11 +740,11 @@ const MJ_VIEWS = {
   },
 
   contrib(){
-    const plans = DB.majlis.plans;
-    const ms = sortedMembers("majlis", m => (S.showOff || m.active !== false) && (!S.group || m.groupId === S.group));
+    const plans = DB[MK].plans;
+    const ms = sortedMembers(MK, m => (S.showOff || m.active !== false) && (!S.group || m.groupId === S.group));
     let body = "", lastG = null, T = { req: 0, paid: 0, rem: 0 }, PT = plans.map(() => 0);
     for (const m of ms) {
-      if (m.groupId !== lastG) { lastG = m.groupId; body += `<tr class="grp"><td colspan="${plans.length + 5}">${esc(groupName("majlis", lastG))} <button class="btn sm noprint" data-act="mjgpay" data-g="${lastG}" style="margin-inline-start:10px">💰 دفع للمجموعة</button> <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}">📊 تقرير المجموعة</button></td></tr>`; }
+      if (m.groupId !== lastG) { lastG = m.groupId; body += `<tr class="grp"><td colspan="${plans.length + 5}">${esc(groupName(MK, lastG))} <button class="btn sm noprint" data-act="mjgpay" data-g="${lastG}" style="margin-inline-start:10px">💰 دفع للمجموعة</button> <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}">📊 تقرير المجموعة</button></td></tr>`; }
       const s = MJ.member(m.id);
       T.req += s.req; T.paid += s.paid; T.rem += s.rem;
       s.plans.forEach((x,i) => PT[i] += x.paid);
@@ -717,23 +755,23 @@ const MJ_VIEWS = {
     }
     return pageHead("المساهمات", "المدفوع / المطلوب لكل عضو في كل بند. اضغط على الاسم لعرض كشف الحساب، أو على اسم البند لتعديله.",
       printBtn + xlsBtn + `<button class="btn pri" data-act="mjplan">+ مساهمة جديدة</button>`) + `
-    <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions("majlis", S.group, true)}</select>${searchBox()}
+    <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions(MK, S.group, true)}</select>${searchBox()}
       <label class="fld chk" style="margin:0"><input type="checkbox" data-chg="showoff" ${S.showOff ? "checked" : ""}><span>إظهار غير الفعالين</span></label></div>
     <div class="card"><div class="tw"><table class="export sticky1"><thead><tr><th>الاسم</th>${plans.map(p => `<th class="n"><a href="#" data-act="mjplan" data-id="${p.id}" title="تعديل البند">${esc(p.name)}</a><br><span class="t-mut" style="font-weight:500">${p.amount ? fmt(p.amount) : "حسب الاتفاق"}</span></th>`).join("")}<th class="n">إجمالي المدفوع</th><th class="n">المتبقي</th><th class="noprint"></th></tr></thead>
     <tbody>${body}</tbody><tfoot><tr class="grand"><td>المجموع</td>${PT.map(v => `<td class="n">${fmt(v)}</td>`).join("")}<td class="n">${fmt(T.paid)}</td><td class="n">${fmt(T.rem)}</td><td class="noprint"></td></tr></tfoot></table></div></div>`;
   },
 
   pay(){
-    const recent = DB.majlis.payments.slice().reverse().filter(p => p.date || p.createdAt).slice(0, 40);
+    const recent = DB[MK].payments.slice().reverse().filter(p => p.date || p.createdAt).slice(0, 40);
     return pageHead("تسجيل دفعة", "سجّل مبلغاً استلمته من أحد الأعضاء، أو دفعة من صاحب مجموعة عن أعضائه",
       `<button class="btn pri" data-act="mjgpay">💰 دفعة مجموعة</button>`) + `
     <div class="grid g2">
       <div class="card"><div class="card-b">
         <form data-form="mjpay">
           <label class="fld"><span>العضو</span><input class="inp" list="mjm" name="member" required placeholder="اكتب جزءاً من الاسم…" autocomplete="off"></label>
-          <datalist id="mjm">${sortedMembers("majlis", m => m.active !== false).map(m => `<option value="${esc(m.name)}">${esc(shortGroup(groupName("majlis", m.groupId)))}</option>`).join("")}</datalist>
+          <datalist id="mjm">${sortedMembers(MK, m => m.active !== false).map(m => `<option value="${esc(m.name)}">${esc(shortGroup(groupName(MK, m.groupId)))}</option>`).join("")}</datalist>
           <div class="row2">
-            <label class="fld"><span>البند</span><select class="inp" name="plan">${DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></label>
+            <label class="fld"><span>البند</span><select class="inp" name="plan">${DB[MK].plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></label>
             <label class="fld"><span>المبلغ</span><input class="inp" name="amount" type="number" step="0.001" min="0" required></label>
           </div>
           <div class="row2">
@@ -745,7 +783,7 @@ const MJ_VIEWS = {
         </form>
       </div></div>
       <div class="card"><div class="card-h"><h2>آخر الدفعات المسجلة</h2></div><div class="tw"><table><thead><tr><th>العضو</th><th>البند</th><th class="n">المبلغ</th><th>التاريخ</th><th></th></tr></thead><tbody>
-      ${recent.map(p => `<tr><td class="nm">${esc(member("majlis", p.memberId)?.name)}</td><td>${esc(DB.majlis.plans.find(x => x.id === p.planId)?.name)}</td><td class="n">${fmt(p.amount)}</td><td class="t-mut">${esc(p.date)}</td><td style="white-space:nowrap">${p.batch ? `<button class="btn sm" data-act="mjgreceipt" data-b="${p.batch}">🧾 إيصال المجموعة</button>` : ""}<button class="btn sm" data-act="mjreceipt" data-id="${p.id}">🧾 إيصال</button><button class="btn sm ghost danger" data-act="mjdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">لم تُسجَّل دفعات جديدة بعد</td></tr>`}
+      ${recent.map(p => `<tr><td class="nm">${esc(member(MK, p.memberId)?.name)}</td><td>${esc(DB[MK].plans.find(x => x.id === p.planId)?.name)}</td><td class="n">${fmt(p.amount)}</td><td class="t-mut">${esc(p.date)}</td><td style="white-space:nowrap">${p.batch ? `<button class="btn sm" data-act="mjgreceipt" data-b="${p.batch}">🧾 إيصال المجموعة</button>` : ""}<button class="btn sm" data-act="mjreceipt" data-id="${p.id}">🧾 إيصال</button><button class="btn sm ghost danger" data-act="mjdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">لم تُسجَّل دفعات جديدة بعد</td></tr>`}
       </tbody></table></div></div>
     </div>`;
   },
@@ -753,24 +791,25 @@ const MJ_VIEWS = {
   late(){
     const t = MJ.totals();
     const rows = t.per.filter(x => x.rem > 0 && (!S.group || x.m.groupId === S.group))
-      .sort((a,b) => DB.majlis.groups.findIndex(g => g.id === a.m.groupId) - DB.majlis.groups.findIndex(g => g.id === b.m.groupId));
+      .sort((a,b) => DB[MK].groups.findIndex(g => g.id === a.m.groupId) - DB[MK].groups.findIndex(g => g.id === b.m.groupId));
     return pageHead("قائمة المتخلفين عن الدفع", `تاريخ التحديث: ${new Date().toLocaleDateString("ar-OM-u-nu-latn")}`, printBtn + xlsBtn) + `
-    <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions("majlis", S.group, true)}</select>${searchBox()}</div>
+    <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions(MK, S.group, true)}</select>${searchBox()}</div>
     <div class="kpis">${kpi("عدد المتخلفين", rows.length, "", "acc")}${kpi("مجموع المبالغ المتبقية", money(sum(rows, r => r.rem)) + cur(), "", "bad")}</div>
     <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">ت</th><th>الاسم</th><th>المجموعة</th><th class="n">المطلوب</th><th class="n">المدفوع</th><th class="n">المتبقي</th><th>تفصيل</th><th>الملاحظات</th></tr></thead><tbody>
-    ${rows.map((x,i) => `<tr data-name="${esc(norm(x.m.name))}"><td class="n">${i+1}</td><td class="nm"><a href="#" data-act="mjstmt" data-m="${x.m.id}">${esc(x.m.name)}</a></td><td class="t-mut">${esc(shortGroup(groupName("majlis", x.m.groupId)))}</td>
+    ${rows.map((x,i) => `<tr data-name="${esc(norm(x.m.name))}"><td class="n">${i+1}</td><td class="nm"><a href="#" data-act="mjstmt" data-m="${x.m.id}">${esc(x.m.name)}</a></td><td class="t-mut">${esc(shortGroup(groupName(MK, x.m.groupId)))}</td>
       <td class="n">${fmt(x.req)}</td><td class="n">${fmt(x.paid)}</td><td class="n t-bad">${fmt(x.rem)}</td>
       <td>${x.plans.filter(p => p.rem > 0).map(p => `<span class="pill warn" style="margin:1px">${esc(p.p.name)}: ${fmt(p.rem)}</span>`).join(" ")}</td><td>${esc(x.m.note)}</td></tr>`).join("")}
     </tbody><tfoot><tr class="grand"><td></td><td>المجموع</td><td></td><td class="n">${fmt(sum(rows, r => r.req))}</td><td class="n">${fmt(sum(rows, r => r.paid))}</td><td class="n">${fmt(sum(rows, r => r.rem))}</td><td></td><td></td></tr></tfoot></table></div></div>`;
   },
 
-  expenses(){ return ledgerView("majlis", "expenses", "مصروفات بناء المجلس", "كل ما صُرف على بناء المجلس ومواده", true); },
+  expenses(){ return ledgerView(MK, "expenses", MK === "majlis" ? "مصروفات بناء المجلس" : "المصروفات", MK === "majlis" ? "كل ما صُرف على بناء المجلس ومواده" : "كل ما صُرف من أموال الجمعية", true); },
   petty(){ return pettyView(); },
+  assets(){ return assetsView(); },
   reports(){ return mjReportView(); },
-  income(){ return ledgerView("majlis", "income", "إيرادات أخرى", "تبرعات ومبيعات ومبالغ من خارج مساهمات الأعضاء", false); },
+  income(){ return ledgerView(MK, "income", "إيرادات أخرى", "تبرعات ومبيعات ومبالغ من خارج مساهمات الأعضاء", false); },
 
   contractor(){
-    const s = DB.majlis.settings, st = DB.majlis.stages, cp = DB.majlis.contractorPayments;
+    const s = DB[MK].settings, st = DB[MK].stages, cp = DB[MK].contractorPayments;
     const paid = sum(cp, p => p.amount), total = n(s.contractTotal);
     const due = sum(st.filter(x => x.done), x => x.amount);
     return pageHead("المقاول", "المبلغ المتفق عليه، مراحل الدفع حسب الإنجاز، والمبالغ المسلّمة للمقاول", printBtn) + `
@@ -787,23 +826,23 @@ const MJ_VIEWS = {
           <td style="white-space:nowrap"><button class="btn sm ghost" data-act="mjstage" data-id="${x.id}">تعديل</button><button class="btn sm ghost danger" data-act="mjdelstage" data-id="${x.id}">حذف</button></td></tr>`).join("")}
         </tbody><tfoot><tr class="tot"><td></td><td>المجموع</td><td class="n">${fmt(sum(st, x => x.amount))}</td><td></td></tr></tfoot></table></div></div>
       <div class="card"><div class="card-h"><h2>المبالغ المسلّمة للمقاول</h2><span class="grow"></span><button class="btn sm pri" data-act="ledgeradd" data-list="contractorPayments">+ دفعة للمقاول</button></div>
-        ${ledgerTable("majlis", "contractorPayments", false)}</div>
+        ${ledgerTable(MK, "contractorPayments", false)}</div>
     </div>`;
   },
 
-  members(){ return membersView("majlis"); },
+  members(){ return membersView(MK); },
 
   plans(){
     return pageHead("بنود المساهمة", "كل بند هو مبلغ مطلوب من كل عضو (مثل الجمعية الأولى والثانية). يمكن تعديل المبلغ لعضو معيّن من كشف حسابه.",
       `<button class="btn pri" data-act="mjplan">+ مساهمة جديدة</button>`) + `
     <div class="card"><div class="tw"><table><thead><tr><th>البند</th><th class="n">المبلغ على كل عضو</th><th>ملاحظات</th><th class="n">المحصّل</th><th></th></tr></thead><tbody>
-    ${DB.majlis.plans.map(p => `<tr><td class="nm">${esc(p.name)}</td><td class="n">${p.amount ? fmt(p.amount) : `<span class="t-mut">حسب الاتفاق</span>`}${p.installment ? ` <span class="pill">دفعات × ${fmt(p.installment)}</span>` : ""}</td><td>${esc(p.note)}</td>
-      <td class="n">${fmt(sum(DB.majlis.payments.filter(x => x.planId === p.id), x => x.amount))}</td>
+    ${DB[MK].plans.map(p => `<tr><td class="nm">${esc(p.name)}</td><td class="n">${p.amount ? fmt(p.amount) : `<span class="t-mut">حسب الاتفاق</span>`}${p.installment ? ` <span class="pill">دفعات × ${fmt(p.installment)}</span>` : ""}</td><td>${esc(p.note)}</td>
+      <td class="n">${fmt(sum(DB[MK].payments.filter(x => x.planId === p.id), x => x.amount))}</td>
       <td style="white-space:nowrap"><button class="btn sm ghost" data-act="mjplan" data-id="${p.id}">تعديل</button><button class="btn sm ghost danger" data-act="mjdelplan" data-id="${p.id}">حذف</button></td></tr>`).join("")}
     </tbody></table></div></div>`;
   },
 
-  settings(){ return settingsView("majlis"); },
+  settings(){ return settingsView(MK); },
 };
 
 /* ============================================================ shared views */
@@ -876,7 +915,7 @@ function settingsView(a){
       <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
       <p class="sub" style="margin-bottom:8px">إعادة التطبيق إلى البيانات الأصلية المستوردة من ملفات Excel (سيُحذف كل ما أُدخل بعدها).</p>
       <button class="btn danger" data-act="reset">إعادة تعيين البيانات</button>
-      ${isRosca(a) ? `<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      ${isRosca(a) || (isContrib(a) && a !== "majlis") ? `<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
       <p class="sub" style="margin-bottom:8px">حذف «${esc(s.title)}» نهائياً بكل مشتركيها وأقساطها (ينتقل الحذف للجهاز الآخر مع المزامنة).</p>
       <button class="btn danger" data-act="rodelassoc">حذف هذه الجمعية</button>` : ""}
     </div></div>
@@ -933,10 +972,10 @@ function ledgerForm(list, id){
 function memberForm(id){
   const a = S.a, m = id ? member(a, id) : null;
   let planFields = "";
-  if (a === "majlis" && m) {
-    const o = DB.majlis.overrides[m.id] || {};
+  if (isContrib(a) && m) {
+    const o = DB[MK].overrides[m.id] || {};
     planFields = `<div class="muted-box" style="margin-bottom:12px">مبالغ خاصة بهذا العضو (اتركها فارغة لاستخدام المبلغ الافتراضي للبند)</div>
-      <div class="row2">${DB.majlis.plans.map(p => fld(`${esc(p.name)} <span class="t-mut">(افتراضي ${fmt(p.amount)})</span>`, "ov_" + p.id, o[p.id] ?? "", "number", "min=0")).join("")}</div>`;
+      <div class="row2">${DB[MK].plans.map(p => fld(`${esc(p.name)} <span class="t-mut">(افتراضي ${fmt(p.amount)})</span>`, "ov_" + p.id, o[p.id] ?? "", "number", "min=0")).join("")}</div>`;
   }
   modal(m ? "تعديل بيانات عضو" : "عضو جديد", `
     ${fld("الاسم الكامل", "name", m?.name, "text", "required")}
@@ -957,12 +996,12 @@ function memberForm(id){
       let target = m;
       if (m) touch(Object.assign(m, rec)); else { target = touch({ id: uid(a[0] + "m"), ...rec }); DB[a].members.push(target); }
       if (a === "aza" && !m && v.addYear) { const y = AZ.years().at(-1); DB.aza.years[y].pay[target.id] = Array(12).fill(0); DB.aza.years[y].ts[target.id] = now(); }
-      if (a === "majlis" && m) {
+      if (isContrib(a) && m) {
         const o = {};
-        DB.majlis.plans.forEach(p => { const val = v["ov_" + p.id]; if (val !== "" && val !== undefined) o[p.id] = n(val); });
-        const before = JSON.stringify(DB.majlis.overrides[m.id] || {});
-        if (Object.keys(o).length) DB.majlis.overrides[m.id] = o; else delete DB.majlis.overrides[m.id];
-        if (before !== JSON.stringify(o)) DB.majlis.overridesTs[m.id] = now();
+        DB[MK].plans.forEach(p => { const val = v["ov_" + p.id]; if (val !== "" && val !== undefined) o[p.id] = n(val); });
+        const before = JSON.stringify(DB[MK].overrides[m.id] || {});
+        if (Object.keys(o).length) DB[MK].overrides[m.id] = o; else delete DB[MK].overrides[m.id];
+        if (before !== JSON.stringify(o)) DB[MK].overridesTs[m.id] = now();
       }
       toast("تم حفظ العضو");
   }});
@@ -991,7 +1030,7 @@ function groupsForm(){
       const id = del.dataset.gdel, g = DB[a].groups.find(x => x.id === id);
       const mids = new Set(DB[a].members.filter(m => m.groupId === id).map(m => m.id));
       if (mids.size) {
-        const paid = a === "majlis" ? sum(DB.majlis.payments.filter(p => mids.has(p.memberId)), p => p.amount)
+        const paid = isContrib(a) ? sum(DB[MK].payments.filter(p => mids.has(p.memberId)), p => p.amount)
                                     : sum([...mids], mid => sum(AZ.years(), y => AZ.paid(y, mid)));
         if (!confirm(`«${g.name}» فيها ${mids.size} أعضاء${paid ? ` ومدفوعاتهم ${fmtCur(a, paid)}` : ""}.\n\nسيتم حذف المجموعة وأعضائها نهائياً${paid ? `، ويُسجَّل المبلغ في «إيرادات أخرى» باسم «مساهمات أخرى — ${g.name}» حتى لا يتغير الرصيد` : ""}.\n\nمتابعة؟`)) return;
         const r = removeGroup(DB, a, id, `مساهمات أخرى — ${g.name}`);
@@ -1020,23 +1059,23 @@ function azaStatement(mid){
 }
 
 function majlisStatement(mid){
-  const m = member("majlis", mid), s = MJ.member(mid);
-  const pays = DB.majlis.payments.filter(p => p.memberId === mid);
+  const m = member(MK, mid), s = MJ.member(mid);
+  const pays = DB[MK].payments.filter(p => p.memberId === mid);
   const body = () => `
-    <p class="sub" style="margin-bottom:10px">${esc(groupName("majlis", m.groupId))}${m.note ? " — " + esc(m.note) : ""}</p>
+    <p class="sub" style="margin-bottom:10px">${esc(groupName(MK, m.groupId))}${m.note ? " — " + esc(m.note) : ""}</p>
     <div class="kpis">${kpi("المطلوب", money(s.req))}${kpi("المدفوع", money(s.paid), "", "good")}${kpi("المتبقي", money(s.rem), "", s.rem ? "bad" : "good")}</div>
     <div class="tw"><table><thead><tr><th>البند</th><th class="n">المطلوب</th><th class="n">المدفوع</th><th class="n">المتبقي</th></tr></thead><tbody>
     ${s.plans.map(x => `<tr><td>${esc(x.p.name)}</td><td class="n">${fmt(x.req)}</td><td class="n">${fmt(x.paid)}</td><td class="n">${x.rem ? `<span class="t-bad">${fmt(x.rem)}</span>` : "0"}</td></tr>`).join("")}</tbody></table></div>
     <h2 style="margin:16px 0 8px">سجل الدفعات (${pays.length})</h2>
     <div class="tw" style="max-height:300px"><table><thead><tr><th>البند</th><th class="n">المبلغ</th><th>التاريخ</th><th>ملاحظة</th><th></th></tr></thead><tbody>
-    ${pays.slice().reverse().map(p => `<tr><td>${esc(DB.majlis.plans.find(x => x.id === p.planId)?.name)}</td><td class="n">${fmt(p.amount)}</td><td class="t-mut">${esc(p.date)}</td><td>${esc(p.note)}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-act="mjreceipt" data-id="${p.id}">🧾 إيصال</button><button type="button" class="btn sm ghost danger" data-act="mjdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">لا توجد دفعات</td></tr>`}
+    ${pays.slice().reverse().map(p => `<tr><td>${esc(DB[MK].plans.find(x => x.id === p.planId)?.name)}</td><td class="n">${fmt(p.amount)}</td><td class="t-mut">${esc(p.date)}</td><td>${esc(p.note)}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-act="mjreceipt" data-id="${p.id}">🧾 إيصال</button><button type="button" class="btn sm ghost danger" data-act="mjdelpay" data-id="${p.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">لا توجد دفعات</td></tr>`}
     </tbody></table></div>
     <div class="bar" style="margin-top:12px"><button type="button" class="btn pri" data-act="mjpayfor" data-m="${mid}">+ تسجيل دفعة</button><button type="button" class="btn" data-act="memedit" data-id="${mid}">تعديل العضو والمبالغ الخاصة</button></div>`;
   modal(`كشف حساب: ${m.name}`, body(), { wide: true });
 }
 
 function majlisPayForm(mid, planId){
-  const m = member("majlis", mid);
+  const m = member(MK, mid);
   const s = MJ.member(mid);
   const first = planId || (s.plans.find(x => x.rem > 0) || s.plans[0]).p.id;
   const f = modal(`تسجيل دفعة: ${m.name}`, `
@@ -1048,7 +1087,7 @@ function majlisPayForm(mid, planId){
   { altLabel: "حفظ وإصدار إيصال", onSave: v => {
       if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
       const p = touch({ id: uid("mp"), memberId: mid, planId: v.plan, amount: n(v.amount), date: v.date, note: v.note, createdAt: new Date().toISOString() });
-      DB.majlis.payments.push(p);
+      DB[MK].payments.push(p);
       toast(`تم تسجيل ${fmt(v.amount)} لـ ${m.name}`);
       if (v.__alt) return () => majlisReceipt(p.id);
   }});
@@ -1064,12 +1103,12 @@ function suggestAmount(x){
 }
 
 function planForm(id){
-  const p = id ? DB.majlis.plans.find(x => x.id === id) : null;
+  const p = id ? DB[MK].plans.find(x => x.id === id) : null;
   const groupsPick = p ? "" : `
     <div class="fld"><span>تُطبَّق على المجموعات</span>
       <div class="muted-box" style="max-height:220px;overflow:auto">
         <label class="fld chk" style="margin:0 0 6px"><input type="checkbox" data-allg checked><span><b>كل المجموعات</b></span></label>
-        ${DB.majlis.groups.map(g => `<label class="fld chk" style="margin:0 0 4px"><input type="checkbox" name="g_${g.id}" checked><span>${esc(shortGroup(g.name))} <span class="t-mut">(${DB.majlis.members.filter(m => m.groupId === g.id && m.active !== false).length})</span></span></label>`).join("")}
+        ${DB[MK].groups.map(g => `<label class="fld chk" style="margin:0 0 4px"><input type="checkbox" name="g_${g.id}" checked><span>${esc(shortGroup(g.name))} <span class="t-mut">(${DB[MK].members.filter(m => m.groupId === g.id && m.active !== false).length})</span></span></label>`).join("")}
       </div>
       <p class="sub" style="margin-top:4px">أعضاء المجموعات غير المؤشَّرة لن يُطالبوا بهذه المساهمة. ويمكن لاحقاً إعفاء عضو معيّن من كشف حسابه.</p>
     </div>`;
@@ -1078,24 +1117,24 @@ function planForm(id){
     ${fld("ملاحظات", "note", p?.note)}${groupsPick}`,
   { onSave: v => {
       const rec = { name: v.name.trim(), amount: n(v.amount), installment: n(v.installment), note: v.note };
-      if (DB.majlis.plans.some(x => x.id !== p?.id && x.name === rec.name)) { toast("يوجد بند بنفس الاسم"); return false; }
+      if (DB[MK].plans.some(x => x.id !== p?.id && x.name === rec.name)) { toast("يوجد بند بنفس الاسم"); return false; }
       if (p) { touch(Object.assign(p, rec)); toast("تم حفظ البند"); return; }
       const np = touch({ id: uid("p"), ...rec });
-      DB.majlis.plans.push(np);
+      DB[MK].plans.push(np);
       // members of unticked groups are not asked for this contribution
       let excluded = 0;
-      for (const m of DB.majlis.members) if (!v["g_" + m.groupId]) {
-        DB.majlis.overrides[m.id] = { ...(DB.majlis.overrides[m.id] || {}), [np.id]: 0 };
-        DB.majlis.overridesTs[m.id] = now(); excluded++;
+      for (const m of DB[MK].members) if (!v["g_" + m.groupId]) {
+        DB[MK].overrides[m.id] = { ...(DB[MK].overrides[m.id] || {}), [np.id]: 0 };
+        DB[MK].overridesTs[m.id] = now(); excluded++;
       }
       toast(`تمت إضافة «${rec.name}»${excluded ? ` — مستثنى ${excluded} عضو` : ""}`);
   }});
   f.querySelector("[data-allg]")?.addEventListener("change", e => f.querySelectorAll("input[name^=g_]").forEach(c => c.checked = e.target.checked));
 }
 function stageForm(id){
-  const st = id ? DB.majlis.stages.find(x => x.id === id) : null;
+  const st = id ? DB[MK].stages.find(x => x.id === id) : null;
   modal(st ? "تعديل مرحلة" : "مرحلة جديدة", `${fld("المرحلة", "title", st?.title, "text", "required")}${fld("المبلغ", "amount", st?.amount ?? "", "number", "min=0")}`,
-  { onSave: v => { const rec = { title: v.title.trim(), amount: n(v.amount) }; if (st) touch(Object.assign(st, rec)); else DB.majlis.stages.push(touch({ id: uid("st"), done: false, ...rec })); }});
+  { onSave: v => { const rec = { title: v.title.trim(), amount: n(v.amount) }; if (st) touch(Object.assign(st, rec)); else DB[MK].stages.push(touch({ id: uid("st"), done: false, ...rec })); }});
 }
 
 /* ============================================================ phone-friendly monthly entry (العزاء) */
@@ -1189,12 +1228,12 @@ function azaYearReceipt(y, mid){
   azaReceipt(y, mid, idx, AZ.paid(y, mid));
 }
 function majlisReceipt(pid){
-  const p = DB.majlis.payments.find(x => x.id === pid); if (!p) return;
-  const plan = DB.majlis.plans.find(x => x.id === p.planId), s = MJ.member(p.memberId);
+  const p = DB[MK].payments.find(x => x.id === pid); if (!p) return;
+  const plan = DB[MK].plans.find(x => x.id === p.planId), s = MJ.member(p.memberId);
   if (!p.receiptNo) { p.receiptNo = nextReceiptNo(); touch(p); save(); }
-  issueReceipt("majlis", { no: p.receiptNo, date: p.date || today(), memberId: p.memberId, amount: p.amount,
+  issueReceipt(MK, { no: p.receiptNo, date: p.date || today(), memberId: p.memberId, amount: p.amount,
     forText: (plan?.name || "مساهمة") + (p.note ? ` — ${p.note}` : ""),
-    extra: [["إجمالي ما دفعه", fmtCur("majlis", s.paid)], ["المتبقي عليه", s.rem ? fmtCur("majlis", s.rem) : "لا يوجد — مكتمل ✓"]] });
+    extra: [["إجمالي ما دفعه", fmtCur(MK, s.paid)], ["المتبقي عليه", s.rem ? fmtCur(MK, s.rem) : "لا يوجد — مكتمل ✓"]] });
 }
 function nextReceiptNo(){ DEV.seq = (DEV.seq || 0) + 1; saveDev(); return `${DEV.prefix}-${String(DEV.seq).padStart(4, "0")}`; }
 function waLink(phone, text){
@@ -1371,17 +1410,17 @@ function gpPayerId(a, gid, payer){
 }
 
 function majlisGroupPay(gid){
-  gid = gid || S.group || DB.majlis.groups[0]?.id;
+  gid = gid || S.group || DB[MK].groups[0]?.id;
   if (!gid) return toast("لا توجد مجموعات");
-  const planOpts = DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
-  const f = groupPayShell("majlis", "دفعة مجموعة — جمعية المجلس", gid,
+  const planOpts = DB[MK].plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const f = groupPayShell(MK, "دفعة مجموعة — جمعية المجلس", gid,
     `<label class="fld"><span>البند</span><select class="inp" name="plan">${planOpts}</select></label>`,
     "حفظ وإصدار إيصال المجموعة", v => {
-      const plan = DB.majlis.plans.find(p => p.id === v.plan), g = v.gid, payer = v.payer.trim();
-      const chosen = DB.majlis.members.filter(m => m.groupId === g && v["sel_" + m.id] && n(v["amt_" + m.id]) > 0);
+      const plan = DB[MK].plans.find(p => p.id === v.plan), g = v.gid, payer = v.payer.trim();
+      const chosen = DB[MK].members.filter(m => m.groupId === g && v["sel_" + m.id] && n(v["amt_" + m.id]) > 0);
       if (!chosen.length) { toast("اختر عضواً واحداً على الأقل وأدخل المبلغ"); return false; }
       const batch = uid("b");
-      for (const m of chosen) DB.majlis.payments.push(touch({ id: uid("mp"), memberId: m.id, planId: plan.id, amount: n(v["amt_" + m.id]), date: v.date,
+      for (const m of chosen) DB[MK].payments.push(touch({ id: uid("mp"), memberId: m.id, planId: plan.id, amount: n(v["amt_" + m.id]), date: v.date,
         note: `دفعة مجموعة — ${payer}`, payer, batch, createdAt: new Date().toISOString() }));
       const total = sum(chosen, m => v["amt_" + m.id]);
       toast(`تم تسجيل ${fmt(total)} عن ${chosen.length} أعضاء`);
@@ -1389,34 +1428,34 @@ function majlisGroupPay(gid){
     });
   const draw = () => {
     const g = f.querySelector("[name=gid]").value, pid = f.querySelector("[name=plan]").value;
-    const ms = DB.majlis.members.filter(m => m.groupId === g && m.active !== false);
+    const ms = DB[MK].members.filter(m => m.groupId === g && m.active !== false);
     f.querySelector("#gp-list").innerHTML = `<div class="tw"><table><thead><tr><th><input type="checkbox" data-gp-all checked aria-label="الكل"></th><th>العضو</th><th class="n">المتبقي في البند</th><th class="n">المبلغ</th></tr></thead><tbody>
       ${ms.map(m => { const x = MJ.member(m.id).plans.find(x => x.p.id === pid), sug = suggestAmount(x);
         return `<tr data-gp-row><td><input type="checkbox" name="sel_${m.id}" ${x.rem > 0 ? "checked" : ""}></td><td class="nm">${esc(m.name)}</td>
           <td class="n ${x.rem ? "t-bad" : "t-good"}">${x.rem ? fmt(x.rem) : "مكتمل"}</td>
           <td class="n"><input class="inp" data-amt name="amt_${m.id}" type="number" step="0.001" min="0" inputmode="decimal" value="${x.rem > 0 ? sug : ""}" style="width:100px;text-align:center;direction:ltr"></td></tr>`; }).join("") || `<tr><td colspan="4" class="empty">لا يوجد أعضاء في هذه المجموعة</td></tr>`}
     </tbody></table></div>`;
-    gpTotals("majlis", f);
+    gpTotals(MK, f);
   };
-  f.querySelector("[name=plan]").value = DB.majlis.plans.find(p => p.installment)?.id || DB.majlis.plans[0]?.id;
-  gpPayerSync("majlis", f, gid); draw();
-  f.querySelector("[name=gid]").addEventListener("change", e => { gpPayerSync("majlis", f, e.target.value); draw(); });
+  f.querySelector("[name=plan]").value = DB[MK].plans.find(p => p.installment)?.id || DB[MK].plans[0]?.id;
+  gpPayerSync(MK, f, gid); draw();
+  f.querySelector("[name=gid]").addEventListener("change", e => { gpPayerSync(MK, f, e.target.value); draw(); });
   f.querySelector("[name=plan]").addEventListener("change", draw);
-  f.addEventListener("input", e => { if (e.target.matches("[data-gp-all]")) f.querySelectorAll("[data-gp-row] input[type=checkbox]").forEach(c => c.checked = e.target.checked); gpTotals("majlis", f); });
-  f.addEventListener("change", () => gpTotals("majlis", f));
+  f.addEventListener("input", e => { if (e.target.matches("[data-gp-all]")) f.querySelectorAll("[data-gp-row] input[type=checkbox]").forEach(c => c.checked = e.target.checked); gpTotals(MK, f); });
+  f.addEventListener("change", () => gpTotals(MK, f));
 }
 function majlisBatchReceipt(batch){
-  const existing = DB.majlis.receipts.find(r => r.batch === batch);
-  if (existing) return showReceipt("majlis", existing);
-  const ps = DB.majlis.payments.filter(p => p.batch === batch); if (!ps.length) return;
-  const m0 = member("majlis", ps[0].memberId), gid = m0?.groupId, plan = DB.majlis.plans.find(p => p.id === ps[0].planId);
+  const existing = DB[MK].receipts.find(r => r.batch === batch);
+  if (existing) return showReceipt(MK, existing);
+  const ps = DB[MK].payments.filter(p => p.batch === batch); if (!ps.length) return;
+  const m0 = member(MK, ps[0].memberId), gid = m0?.groupId, plan = DB[MK].plans.find(p => p.id === ps[0].planId);
   const lines = ps.map(p => {
     const x = MJ.member(p.memberId).plans.find(x => x.p.id === p.planId);
-    return { memberId: p.memberId, name: member("majlis", p.memberId)?.name || "", amount: p.amount, detail: x.rem ? `المتبقي عليه ${fmtCur("majlis", x.rem)}` : "مكتمل ✓" };
+    return { memberId: p.memberId, name: member(MK, p.memberId)?.name || "", amount: p.amount, detail: x.rem ? `المتبقي عليه ${fmtCur(MK, x.rem)}` : "مكتمل ✓" };
   });
-  const payer = ps[0].payer || shortGroup(groupName("majlis", gid));
-  issueReceipt("majlis", { kind: "group", batch, date: ps[0].date || today(), payer, payerId: gpPayerId("majlis", gid, payer), groupId: gid,
-    groupName: shortGroup(groupName("majlis", gid)), forText: plan?.name || "مساهمة", lines, amount: sum(ps, p => p.amount) });
+  const payer = ps[0].payer || shortGroup(groupName(MK, gid));
+  issueReceipt(MK, { kind: "group", batch, date: ps[0].date || today(), payer, payerId: gpPayerId(MK, gid, payer), groupId: gid,
+    groupName: shortGroup(groupName(MK, gid)), forText: plan?.name || "مساهمة", lines, amount: sum(ps, p => p.amount) });
 }
 
 function azaGroupPay(gid){
@@ -1492,7 +1531,7 @@ function groupReportScope(a, flt){
     const c = AZ.cutoff(), ys = AZ.years();
     return flt ? `اشتراكات ${flt}${+flt === c.y ? ` حتى ${MONTHS[c.m - 1]}` : ""}` : `كل السنوات من ${ys[0]} إلى ${ys.at(-1)} (حتى ${MONTHS[c.m - 1]} ${c.y})`;
   }
-  return flt ? DB.majlis.plans.find(p => p.id === flt)?.name || "" : "جميع البنود";
+  return flt ? DB[MK].plans.find(p => p.id === flt)?.name || "" : "جميع البنود";
 }
 function reportText(a, gname, scope, d){
   const late = d.lines.filter(l => l.rem > 0), done = d.lines.filter(l => l.rem <= 0);
@@ -1577,7 +1616,7 @@ async function groupReport(a, gid){
   const ys = AZ.years();
   const fltOpts = a === "aza"
     ? `<option value="">كل السنوات</option>` + ys.slice().reverse().map(y => `<option value="${y}" ${y === ys.at(-1) ? "selected" : ""}>${y}</option>`).join("")
-    : `<option value="">جميع البنود</option>` + DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+    : `<option value="">جميع البنود</option>` + DB[MK].plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
   const f = modal("تقرير حالة المجموعة", `
     <div class="row2">
       <label class="fld"><span>المجموعة</span><select class="inp" name="gid">${groupOptions(a, gid)}</select></label>
@@ -1668,12 +1707,18 @@ function syncView(){
       </div>
       <p class="sub">لكل جهاز بادئة مختلفة حتى لا تتكرر أرقام الإيصالات بين الجوال والكمبيوتر. آخر إيصال من هذا الجهاز: ${DEV.seq ? `${esc(DEV.prefix)}-${String(DEV.seq).padStart(4, "0")}` : "—"}</p>
     </div></div>
-  </div>`;
+  </div>
+  <div class="card" style="margin-top:14px"><div class="card-h"><h2>مكان حفظ البيانات</h2></div><div class="card-b">
+    <p style="margin:0 0 8px">تُحفظ كل البيانات في <b>ذاكرة هذا الجهاز</b> (${IS_MOBILE ? "الهاتف" : "الكمبيوتر"}) فقط، ولا يُرفع منها شيء إلى الإنترنت.
+      تنتقل بين أجهزتك فقط عندما ترسل ملف المزامنة بنفسك.</p>
+    <div id="storinfo" class="muted-box">جارٍ فحص التخزين…</div>
+  </div></div>`;
 }
 
 const SYNC_LISTS = {
   aza: ["groups", "members", "expenses", "income", "receipts", "debts", "debtPays"],
   majlis: ["groups", "members", "plans", "payments", "expenses", "income", "stages", "contractorPayments", "receipts", "petty", "pettyBuys"],
+  contrib: ["groups", "members", "plans", "payments", "expenses", "income", "stages", "contractorPayments", "receipts", "petty", "pettyBuys", "assets"],
 };
 /* merges R into L in place: newest change per record wins; deletions travel as tombstones */
 function mergeDB(L, R){
@@ -1681,10 +1726,15 @@ function mergeDB(L, R){
   const tombs = { ...L.deleted };
   for (const [k, t] of Object.entries(R.deleted)) if (!(tombs[k] >= t)) tombs[k] = t;
   const dead = (key, u) => { const t = tombs[key]; return t !== undefined && t >= (u || 0); };
-  for (const a of ["aza", "majlis"]) {
+  // associations of المجلس's type created on the other device arrive whole
+  L.contribIds = L.contribIds || [];
+  for (const key of R.contribIds || []) if (R[key] && !L[key] && !dead(`assoc:${key}`, 0)) { L[key] = R[key]; L.contribIds.push(key); st.add++; }
+  for (const key of [...L.contribIds]) if (dead(`assoc:${key}`, 0)) { delete L[key]; L.contribIds = L.contribIds.filter(k => k !== key); st.del++; }
+  for (const a of ["aza", "majlis", ...L.contribIds.filter(k => R[k])]) {
     const l = L[a], r = R[a];
+    if (r.assetTypesTs > (l.assetTypesTs || 0)) { l.assetTypes = r.assetTypes; l.assetTypesTs = r.assetTypesTs; }
     if ((r.settingsTs || 0) > (l.settingsTs || 0)) { l.settings = r.settings; l.settingsTs = r.settingsTs; st.upd++; }
-    for (const name of SYNC_LISTS[a]) {
+    for (const name of SYNC_LISTS[a] || SYNC_LISTS.contrib) {
       const arr = l[name] = l[name] || [];
       const idx = new Map(arr.map((x, i) => [x.id, i]));
       for (const item of r[name] || []) {
@@ -1712,14 +1762,16 @@ function mergeDB(L, R){
   }
   for (const [y, ly] of Object.entries(L.aza.years))
     for (const mid of Object.keys(ly.pay)) if (dead(`aza:row:${y}:${mid}`, ly.ts[mid])) { delete ly.pay[mid]; delete ly.ts[mid]; st.del++; }
-  const lo = L.majlis, ro = R.majlis;
-  for (const mid of new Set([...Object.keys(ro.overrides), ...Object.keys(ro.overridesTs)])) {
+  for (const k of ["majlis", ...L.contribIds.filter(c => R[c])]) {
+  const lo = L[k], ro = R[k];
+  for (const mid of new Set([...Object.keys(ro.overrides || {}), ...Object.keys(ro.overridesTs || {})])) {
     const rt = ro.overridesTs[mid] || 0, lt = lo.overridesTs[mid] || 0;
     if (rt > lt || (rt === lt && !lo.overrides[mid] && ro.overrides[mid])) {
       if (JSON.stringify(lo.overrides[mid]) !== JSON.stringify(ro.overrides[mid])) st.upd++;
       if (ro.overrides[mid]) lo.overrides[mid] = ro.overrides[mid]; else delete lo.overrides[mid];
       if (rt) lo.overridesTs[mid] = rt;
     }
+  }
   }
   mergeRoscas(L, R, tombs, st);
   L.deleted = tombs;
@@ -1765,9 +1817,9 @@ function importSyncText(txt, name, size){
    and the next subscriber in turn receives instalment × N as soon as the fund covers it (same rule as the Excel sheet) */
 const RO_TABS = [["dash", "لوحة المعلومات"], ["pay", "الأقساط الشهرية"], ["turns", "الأدوار والاستلام"], ["late", "المتأخرون"], ["members", "المشتركون"], ["receipts", "الإيصالات"], ["settings", "الإعدادات"], ["sync", "المزامنة"]];
 function isRosca(a){ return typeof a === "string" && a.startsWith("r_") && !!DB[a]; }
-function tabsOf(a){ return TABS[a] || (isRosca(a) ? RO_TABS : null); }
-function assocList(){ return ["aza", "majlis", ...(DB.roscaIds || []).filter(k => DB[k])]; }
-function accentOf(a){ return a === "aza" ? ["#1f6f6b", "#e3f0ee"] : a === "majlis" ? ["#8a5a1c", "#f5ecdd"] : ["#3d4f91", "#e7eaf6"]; }
+function tabsOf(a){ return TABS[a] || (isRosca(a) ? RO_TABS : isContrib(a) ? CONTRIB_TABS.map(([k, l]) => k === "assets" ? [k, assetsTitle(a)] : [k, l]) : null); }
+function assocList(){ return ["aza", "majlis", ...(DB.contribIds || []).filter(k => DB[k]), ...(DB.roscaIds || []).filter(k => DB[k])]; }
+function accentOf(a){ return a === "aza" ? ["#1f6f6b", "#e3f0ee"] : a === "majlis" ? ["#8a5a1c", "#f5ecdd"] : isContrib(a) ? ["#2f6d3a", "#e4f0e5"] : ["#3d4f91", "#e7eaf6"]; }
 
 const RO = {
   N(r){ return Math.max(1, Math.round(n(r.settings.months)) || 24); },
@@ -2048,18 +2100,26 @@ function roPayoutReceipt(sid){
 }
 function addAssocForm(){
   const d = new Date(), ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  modal("إضافة جمعية جديدة", `
+  const f = modal("إضافة جمعية جديدة", `
     ${fld("اسم الجمعية", "title", "", "text", 'required placeholder="مثال: جمعية الأصدقاء"')}
-    <label class="fld"><span>نوع الجمعية</span><select class="inp" name="type"><option value="rosca">جمعية مغلقة — أقساط شهرية واستلام بالدور</option></select></label>
-    <div class="row2">${fld("شهر البداية", "start", ym, "month", "required")}${fld("المدة بالأشهر", "months", 24, "number", "required min=1 max=120 step=1")}</div>
+    <label class="fld"><span>نوع الجمعية</span><select class="inp" name="type"><option value="rosca">جمعية مغلقة — أقساط شهرية واستلام بالدور</option><option value="contrib">مساهمات لمشروع — مثل جمعية المجلس (بنود، مصروفات، أموال الجمعية)</option></select></label>
+    <div class="row2" data-rosca>${fld("شهر البداية", "start", ym, "month", "")}${fld("المدة بالأشهر", "months", 24, "number", "min=1 max=120 step=1")}</div>
     <p class="sub">بعد الإنشاء أضف المشتركين وأقساطهم (القسط الشهري لكل مشترك) من «المشتركون».</p>`,
   { onSave: v => {
-      const key = "r_" + Date.now().toString(36);
-      DB[key] = newRosca(v.title.trim(), v.start, Math.round(n(v.months)), "ر.ع");
-      DB.roscaIds.push(key);
-      S.a = key; S.tab = "members";
+      if (v.type === "contrib") {
+        const key = "c_" + Date.now().toString(36);
+        DB[key] = newContrib(v.title.trim()); DB.contribIds.push(key);
+        S.a = key; S.tab = "dash";
+      } else {
+        const key = "r_" + Date.now().toString(36);
+        DB[key] = newRosca(v.title.trim(), v.start || today().slice(0, 7), Math.round(n(v.months)) || 24, "ر.ع");
+        DB.roscaIds.push(key);
+        S.a = key; S.tab = "members";
+      }
       toast(`تمت إضافة «${v.title.trim()}»`);
   }});
+  const sync = () => { const r = f.querySelector("[name=type]").value === "rosca"; f.querySelector("[data-rosca]").style.display = r ? "" : "none"; f.querySelector(".sub:last-of-type").textContent = r ? "بعد الإنشاء أضف المشتركين وأقساطهم (القسط الشهري لكل مشترك) من «المشتركون»." : "بعد الإنشاء أضف الأعضاء والمجموعات وبنود المساهمة، وسجّل أموال الجمعية من تبويبها."; };
+  f.querySelector("[name=type]").addEventListener("change", sync);
 }
 
 const RO_ACT = {
@@ -2104,7 +2164,7 @@ const RO_ACT = {
     const a = S.a, t = DB[a].settings.title;
     if (!confirm(`حذف «${t}» بكل مشتركيها وأقساطها نهائياً؟`)) return;
     if (prompt(`للتأكيد اكتب اسم الجمعية: ${t}`)?.trim() !== t) return toast("لم يتم الحذف");
-    delete DB[a]; DB.roscaIds = DB.roscaIds.filter(k => k !== a); tomb(`assoc:${a}`);
+    delete DB[a]; DB.roscaIds = DB.roscaIds.filter(k => k !== a); DB.contribIds = (DB.contribIds || []).filter(k => k !== a); tomb(`assoc:${a}`);
     S.a = null; save(); render(); toast("تم حذف الجمعية");
   },
 };
@@ -2338,19 +2398,19 @@ const DEBT_ACT = {
    what is left can be returned to the fund. The balance drops once — at withdrawal — not again at each purchase */
 const PETTY = {
   totals(){
-    const m = DB.majlis, w = sum(m.petty.filter(x => x.kind !== "return"), x => x.amount), r = sum(m.petty.filter(x => x.kind === "return"), x => x.amount);
+    const m = DB[MK], w = sum(m.petty.filter(x => x.kind !== "return"), x => x.amount), r = sum(m.petty.filter(x => x.kind === "return"), x => x.amount);
     const s = sum(m.pettyBuys, x => x.amount);
     return { withdrawn: w, returned: r, spent: s, net: w - r, left: w - r - s };
   },
 };
 function pettyView(){
-  const a = "majlis", t = PETTY.totals(), ms = DB.majlis.petty.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
-  const bs = DB.majlis.pettyBuys.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  const a = MK, t = PETTY.totals(), ms = DB[MK].petty.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  const bs = DB[MK].pettyBuys.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
   return pageHead("المبالغ النثرية", "مبالغ تُسحب من رصيد الجمعية وتُسلَّم لأمين العهدة، ويُصرف منها على المشتريات الصغيرة، ويُرجَع المتبقي للصندوق.",
     printBtn + xlsBtn + `<button class="btn" data-act="pettyadd" data-kind="return">↩ إرجاع للصندوق</button><button class="btn" data-act="pettyadd" data-kind="withdraw">− سحب من الرصيد</button><button class="btn pri" data-act="pettybuy">+ مشتريات</button>`) + `
   <div class="kpis">
-    ${kpi("المسحوب من الرصيد", money(t.withdrawn) + cur(), `${DB.majlis.petty.filter(x => x.kind !== "return").length} سحب`, "acc")}
-    ${kpi("المصروف على المشتريات", money(t.spent) + cur(), `${DB.majlis.pettyBuys.length} عملية شراء`)}
+    ${kpi("المسحوب من الرصيد", money(t.withdrawn) + cur(), `${DB[MK].petty.filter(x => x.kind !== "return").length} سحب`, "acc")}
+    ${kpi("المصروف على المشتريات", money(t.spent) + cur(), `${DB[MK].pettyBuys.length} عملية شراء`)}
     ${kpi("المُرجَع للصندوق", money(t.returned) + cur())}
     ${kpi("المتبقي لدى أمين العهدة", money(t.left) + cur(), t.left < 0 ? "المشتريات أكثر من المسحوب — سجّل سحباً بالفرق" : "نقد نثري لم يُصرف بعد", t.left < 0 ? "bad" : t.left ? "" : "good")}
   </div>
@@ -2369,8 +2429,8 @@ function pettyView(){
   </div>`;
 }
 function pettyForm(kind, id){
-  const a = "majlis", x = id ? DB.majlis.petty.find(y => y.id === id) : null, t = PETTY.totals(), ret = kind === "return";
-  const lastHolder = DB.majlis.petty.filter(y => y.holder).at(-1)?.holder || treasurer(a);
+  const a = MK, x = id ? DB[MK].petty.find(y => y.id === id) : null, t = PETTY.totals(), ret = kind === "return";
+  const lastHolder = DB[MK].petty.filter(y => y.holder).at(-1)?.holder || treasurer(a);
   modal(ret ? (x ? "تعديل إرجاع" : "إرجاع المتبقي للصندوق") : (x ? "تعديل سحب" : "سحب مبلغ نثري من الرصيد"), `
     ${!ret ? `<p class="sub" style="margin-bottom:10px">رصيد الجمعية المتوفر الآن: ${fmtCur(a, MJ.totals().balance)}</p>` : `<p class="sub" style="margin-bottom:10px">المتبقي لدى أمين العهدة: ${fmtCur(a, t.left)}</p>`}
     <div class="row2">${fld("المبلغ", "amount", x ? x.amount : ret && t.left > 0 ? t.left : "", "number", "required min=0")}${fld("التاريخ", "date", x?.date || today(), "date")}</div>
@@ -2379,12 +2439,12 @@ function pettyForm(kind, id){
       if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
       if (ret && !x && n(v.amount) > t.left + 0.001 && !confirm(`المبلغ أكبر من المتبقي لدى أمين العهدة (${fmt(t.left)}). متابعة؟`)) return false;
       const rec = { kind: ret ? "return" : "withdraw", amount: n(v.amount), date: v.date, holder: v.holder.trim(), note: v.note };
-      if (x) touch(Object.assign(x, rec)); else DB.majlis.petty.push(touch({ id: uid("pt"), ...rec }));
+      if (x) touch(Object.assign(x, rec)); else DB[MK].petty.push(touch({ id: uid("pt"), ...rec }));
       toast(ret ? "تم تسجيل الإرجاع" : "تم تسجيل السحب");
   }});
 }
 function pettyBuyForm(id){
-  const a = "majlis", b = id ? DB.majlis.pettyBuys.find(y => y.id === id) : null, left = PETTY.totals().left + (b ? n(b.amount) : 0);
+  const a = MK, b = id ? DB[MK].pettyBuys.find(y => y.id === id) : null, left = PETTY.totals().left + (b ? n(b.amount) : 0);
   modal(b ? "تعديل مشتريات" : "مشتريات من المبالغ النثرية", `
     <p class="sub" style="margin-bottom:10px">المتبقي لدى أمين العهدة: <b class="${left > 0 ? "" : "t-bad"}">${fmtCur(a, left)}</b></p>
     ${fld("البيان (ماذا اشتُري)", "title", b?.title, "text", 'required placeholder="مثال: أدوات تنظيف، ماء، كهرباء"')}
@@ -2394,7 +2454,7 @@ function pettyBuyForm(id){
       if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
       if (n(v.amount) > left + 0.001 && !confirm(`المبلغ أكبر من المتبقي لدى أمين العهدة (${fmt(left)}). سجّل سحباً جديداً بالفرق لاحقاً. متابعة؟`)) return false;
       const rec = { title: v.title.trim(), amount: n(v.amount), date: v.date, note: v.note };
-      if (b) touch(Object.assign(b, rec)); else DB.majlis.pettyBuys.push(touch({ id: uid("pb"), ...rec }));
+      if (b) touch(Object.assign(b, rec)); else DB[MK].pettyBuys.push(touch({ id: uid("pb"), ...rec }));
       toast("تم تسجيل المشتريات");
   }});
 }
@@ -2402,49 +2462,51 @@ const PETTY_ACT = {
   pettyadd(d){ pettyForm(d.kind, d.id); },
   pettybuy(d){ pettyBuyForm(d.id); },
   pettydel(d){
-    const list = DB.majlis[d.list], x = list.find(y => y.id === d.id); if (!x) return;
+    const list = DB[MK][d.list], x = list.find(y => y.id === d.id); if (!x) return;
     if (!confirm(`حذف ${d.list === "pettyBuys" ? `«${x.title}»` : x.kind === "return" ? "الإرجاع" : "السحب"} بمبلغ ${fmt(x.amount)}؟`)) return;
-    DB.majlis[d.list] = list.filter(y => y.id !== x.id); tomb(`majlis:${d.list}:${x.id}`); save(); render();
+    DB[MK][d.list] = list.filter(y => y.id !== x.id); tomb(`majlis:${d.list}:${x.id}`); save(); render();
   },
 };
 
 /* ============================================================ التقرير السنوي / العام (جمعية المجلس)
    year report: items dated before the year (and undated items imported from Excel) form the opening balance */
 function mjReportYears(){
-  const m = DB.majlis, ys = new Set([new Date().getFullYear()]);
-  for (const list of [m.payments, m.income, m.expenses, m.petty, m.pettyBuys, m.contractorPayments]) for (const x of list) { const y = yearOf(x.date); if (y) ys.add(y); }
+  const m = DB[MK], ys = new Set([new Date().getFullYear()]);
+  for (const list of [m.payments, m.income, m.expenses, m.petty, m.pettyBuys, m.contractorPayments, m.assets || []]) for (const x of list) { const y = yearOf(x.date); if (y) ys.add(y); }
   return [...ys].sort((a, b) => b - a);
 }
 function mjReportData(Y){
-  const m = DB.majlis, inP = x => !Y || yearOf(x.date) === Y, before = x => Y && (!yearOf(x.date) || yearOf(x.date) < Y);
+  const m = DB[MK], inP = x => !Y || yearOf(x.date) === Y, before = x => Y && (!yearOf(x.date) || yearOf(x.date) < Y);
   const flows = sel => {
     const contrib = m.plans.map(p => ({ p, amt: sum(m.payments.filter(x => x.planId === p.id && sel(x)), x => x.amount) }));
     const pettyW = sum(m.petty.filter(x => x.kind !== "return" && sel(x)), x => x.amount), pettyR = sum(m.petty.filter(x => x.kind === "return" && sel(x)), x => x.amount);
-    const contribT = sum(contrib, c => c.amt), inc = sum(m.income.filter(sel), x => x.amount), exp = sum(m.expenses.filter(sel), x => x.amount);
-    return { contrib, contribT, inc, exp, pettyNet: pettyW - pettyR, inT: contribT + inc, outT: exp + pettyW - pettyR };
+    const assets = (m.assetTypes || []).concat([...new Set((m.assets || []).map(x => x.type))].filter(ty => !(m.assetTypes || []).includes(ty)))
+      .map(ty => ({ ty, amt: sum((m.assets || []).filter(x => x.type === ty && sel(x)), x => x.amount) }));
+    const contribT = sum(contrib, c => c.amt), inc = sum(m.income.filter(sel), x => x.amount) + sum(assets, x => x.amt), exp = sum(m.expenses.filter(sel), x => x.amount);
+    return { contrib, contribT, inc, assets, exp, pettyNet: pettyW - pettyR, inT: contribT + inc, outT: exp + pettyW - pettyR };
   };
   const cur2 = flows(inP), open = Y ? flows(before) : null;
   const opening = open ? open.inT - open.outT : 0;
   const undated = !Y ? 0 : [m.payments, m.income, m.expenses, m.petty].reduce((s, l) => s + l.filter(x => !yearOf(x.date)).length, 0);
   const months = Y ? MONTHS.map((_, i) => {
     const inM = x => yearOf(x.date) === Y && +String(x.date).slice(5, 7) === i + 1;
-    return { i, in: sum(m.payments.filter(inM), x => x.amount) + sum(m.income.filter(inM), x => x.amount),
+    return { i, in: sum(m.payments.filter(inM), x => x.amount) + sum(m.income.filter(inM), x => x.amount) + sum((m.assets || []).filter(inM), x => x.amount),
              out: sum(m.expenses.filter(inM), x => x.amount) + sum(m.petty.filter(x => inM(x) && x.kind !== "return"), x => x.amount) - sum(m.petty.filter(x => inM(x) && x.kind === "return"), x => x.amount) };
   }) : null;
   const top = m.expenses.filter(inP).slice().sort((a, b) => n(b.amount) - n(a.amount)).slice(0, 10);
   return { Y, cur: cur2, opening, closing: opening + cur2.inT - cur2.outT, undated, months, top };
 }
 function mjReportView(){
-  const a = "majlis", years = mjReportYears(), Y = S.repYear ? +S.repYear : 0, d = mjReportData(Y), c = d.cur, t = MJ.totals(), s = DB.majlis.settings;
+  const a = MK, years = mjReportYears(), Y = S.repYear ? +S.repYear : 0, d = mjReportData(Y), c = d.cur, t = MJ.totals(), s = DB[MK].settings;
   const row = (label, v, cls = "", indent = false) => `<tr class="${cls}"><td style="${indent ? "padding-inline-start:28px" : ""}">${label}</td><td class="n"><b>${fmt(v)}</b></td></tr>`;
   const title = Y ? `التقرير السنوي لعام ${Y}` : "التقرير العام";
-  const cPaid = sum(DB.majlis.contractorPayments.filter(x => !Y || yearOf(x.date) === Y || !yearOf(x.date)), x => x.amount), cTotal = n(s.contractTotal);
+  const cPaid = sum(DB[MK].contractorPayments.filter(x => !Y || yearOf(x.date) === Y || !yearOf(x.date)), x => x.amount), cTotal = n(s.contractTotal);
   const pt = PETTY.totals();
-  const plans = DB.majlis.plans.map(p => {
-    const req = sum(t.per, x => MJ.required(x.m.id, p.id)), paid = sum(DB.majlis.payments.filter(x => x.planId === p.id), x => x.amount);
+  const plans = DB[MK].plans.map(p => {
+    const req = sum(t.per, x => MJ.required(x.m.id, p.id)), paid = sum(DB[MK].payments.filter(x => x.planId === p.id), x => x.amount);
     return `<tr><td class="nm">${esc(p.name)}</td><td class="n">${fmt(req)}</td><td class="n">${fmt(paid)}</td><td class="n ${req - paid > 0 ? "t-bad" : ""}">${fmt(Math.max(0, req - paid))}</td><td class="n">${req ? Math.min(100, paid / req * 100).toFixed(0) + "%" : "—"}</td></tr>`;
   }).join("");
-  const groups = DB.majlis.groups.map(g => {
+  const groups = DB[MK].groups.map(g => {
     const per = t.per.filter(x => x.m.groupId === g.id); if (!per.length) return "";
     const req = sum(per, x => x.req), paid = sum(per, x => x.paid), rem = sum(per, x => x.rem);
     return `<tr><td class="nm">${esc(shortGroup(g.name))}</td><td class="n">${per.length}</td><td class="n">${fmt(paid)}</td><td class="n ${rem ? "t-bad" : ""}">${fmt(rem)}</td><td class="n">${per.filter(x => x.rem > 0).length}</td><td class="n">${req ? Math.min(100, paid / req * 100).toFixed(0) + "%" : "—"}</td></tr>`;
@@ -2463,7 +2525,8 @@ function mjReportView(){
       ${Y ? row("رصيد أول المدة", d.opening, "tot") : ""}
       <tr class="grp"><td colspan="2">الإيرادات</td></tr>
       ${c.contrib.filter(x => x.amt).map(x => row(`مساهمات الأعضاء — ${esc(x.p.name)}`, x.amt, "", true)).join("") || row("مساهمات الأعضاء", 0, "", true)}
-      ${row("إيرادات أخرى", c.inc, "", true)}
+      ${c.assets.filter(x => x.amt).map(x => row(`${assetsTitle(MK)} — ${esc(x.ty)}`, x.amt, "", true)).join("")}
+      ${row("إيرادات أخرى", c.inc - sum(c.assets, x => x.amt), "", true)}
       ${row("إجمالي الإيرادات", c.inT, "tot")}
       <tr class="grp"><td colspan="2">المصروفات</td></tr>
       ${row("مصروفات البناء", c.exp, "", true)}
@@ -2487,8 +2550,8 @@ function mjReportView(){
   <div class="card" style="margin-top:14px"><div class="card-h"><h2>المجموعات</h2></div><div class="tw"><table class="export"><thead><tr><th>المجموعة</th><th class="n">الأعضاء</th><th class="n">المدفوع</th><th class="n">المتبقي</th><th class="n">المتأخرون</th><th class="n">النسبة</th></tr></thead><tbody>${groups}</tbody></table></div></div>
   <div class="grid g2" style="margin-top:14px">
     <div class="card"><div class="card-h"><h2>المقاول</h2></div><div class="tw"><table>
-      ${row("المبلغ المتفق عليه", cTotal)}${row("المسلّم للمقاول", sum(DB.majlis.contractorPayments, x => x.amount))}${row("المتبقي للمقاول", cTotal - sum(DB.majlis.contractorPayments, x => x.amount), "tot")}
-      <tr><td>المراحل المنجزة</td><td class="n"><b>${DB.majlis.stages.filter(x => x.done).length} من ${DB.majlis.stages.length}</b></td></tr>
+      ${row("المبلغ المتفق عليه", cTotal)}${row("المسلّم للمقاول", sum(DB[MK].contractorPayments, x => x.amount))}${row("المتبقي للمقاول", cTotal - sum(DB[MK].contractorPayments, x => x.amount), "tot")}
+      <tr><td>المراحل المنجزة</td><td class="n"><b>${DB[MK].stages.filter(x => x.done).length} من ${DB[MK].stages.length}</b></td></tr>
     </table></div></div>
     <div class="card"><div class="card-h"><h2>المبالغ النثرية</h2></div><div class="tw"><table>
       ${row("المسحوب من الرصيد", pt.withdrawn)}${row("المصروف على المشتريات", pt.spent)}${row("المُرجَع للصندوق", pt.returned)}${row("المتبقي لدى أمين العهدة", pt.left, "tot")}
@@ -2497,6 +2560,80 @@ function mjReportView(){
   <p class="sub" style="margin-top:14px">أمين الصندوق: ${esc(treasurer(a))}</p>`;
 }
 
+/* ============================================================ أموال الجمعية (رهن / طناء / بيع) — for associations like جمعية المسجد
+   money the association earns from its own property: pledging (رهن), leasing a yield for a season (طناء) or selling;
+   it counts as income. The types can be renamed or extended per association */
+const CONTRIB_TABS = [["dash","لوحة المعلومات"],["contrib","المساهمات"],["pay","تسجيل دفعة"],["late","المتخلفون عن الدفع"],["assets","أموال الجمعية"],["expenses","المصروفات"],["petty","المبالغ النثرية"],["income","إيرادات أخرى"],["contractor","المقاول"],["reports","التقارير"],["members","الأعضاء والمجموعات"],["plans","بنود المساهمة"],["receipts","الإيصالات"],["settings","الإعدادات"],["sync","المزامنة"]];
+function assetsTotal(c, sel = () => true){ return sum((c.assets || []).filter(sel), x => x.amount); }
+function assetsTitle(a){ return "أموال " + DB[a].settings.title.replace(/^جمعية\s*/, ""); }
+function assetsView(){
+  const a = MK, c = DB[a], types = c.assetTypes || ASSET_TYPES, list = (c.assets || []).slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  const byType = types.map(ty => ({ ty, amt: assetsTotal(c, x => x.type === ty), cnt: (c.assets || []).filter(x => x.type === ty).length }));
+  const other = (c.assets || []).filter(x => !types.includes(x.type));
+  return pageHead(assetsTitle(a), "المبالغ المحصّلة من أموال الجمعية وأملاكها — رهن أو طناء أو بيع — وتُضاف إلى إيرادات الجمعية.",
+    printBtn + xlsBtn + `<button class="btn" data-act="assettypes">✎ أنواع الأموال</button><button class="btn pri" data-act="assetadd">+ مبلغ محصّل</button>`) + `
+  <div class="kpis">
+    ${kpi("إجمالي المحصّل", money(assetsTotal(c)) + cur(), `${(c.assets || []).length} عملية`, "acc")}
+    ${byType.map(x => kpi(esc(x.ty), money(x.amt) + cur(), `${x.cnt} عملية`)).join("")}
+    ${other.length ? kpi("أنواع أخرى", money(sum(other, x => x.amount)) + cur(), `${other.length} عملية`) : ""}
+  </div>
+  <div class="bar noprint"><select class="inp" data-chg="assettype"><option value="">كل الأنواع</option>${types.map(ty => `<option ${S.assetType === ty ? "selected" : ""}>${esc(ty)}</option>`).join("")}</select>${searchBox()}</div>
+  <div class="card"><div class="tw"><table class="export"><thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>الطرف الآخر</th><th class="n">المبلغ</th><th>المدة / ملاحظة</th><th class="noprint"></th></tr></thead><tbody>
+  ${list.filter(x => !S.assetType || x.type === S.assetType).map(x => `<tr data-name="${esc(norm(x.title + " " + (x.party || "") + " " + x.type))}"><td class="t-mut" style="white-space:nowrap">${esc(x.date)}</td>
+    <td><span class="pill">${esc(x.type)}</span></td><td>${esc(x.title)}</td><td class="nm">${esc(x.party)}</td><td class="n"><b>${fmt(x.amount)}</b></td><td>${esc(x.note)}</td>
+    <td class="noprint" style="white-space:nowrap"><button class="btn sm" data-act="assetreceipt" data-id="${x.id}">🧾 إيصال</button><button class="btn sm ghost" data-act="assetadd" data-id="${x.id}">تعديل</button><button class="btn sm ghost danger" data-act="assetdel" data-id="${x.id}">حذف</button></td></tr>`).join("")
+    || `<tr><td colspan="7" class="empty">لم تُسجَّل مبالغ بعد — اضغط «+ مبلغ محصّل»</td></tr>`}
+  </tbody><tfoot><tr class="grand"><td>المجموع</td><td></td><td></td><td></td><td class="n">${fmt(sum(list.filter(x => !S.assetType || x.type === S.assetType), x => x.amount))}</td><td></td><td class="noprint"></td></tr></tfoot></table></div></div>`;
+}
+function assetForm(id){
+  const a = MK, c = DB[a], x = id ? c.assets.find(y => y.id === id) : null, types = c.assetTypes || ASSET_TYPES;
+  modal(x ? "تعديل مبلغ محصّل" : `مبلغ محصّل من ${assetsTitle(a)}`, `
+    <div class="row2">
+      <label class="fld"><span>النوع</span><select class="inp" name="type">${[...new Set([...types, ...(x && !types.includes(x.type) ? [x.type] : [])])].map(ty => `<option ${(x ? x.type : S.assetType || types[0]) === ty ? "selected" : ""}>${esc(ty)}</option>`).join("")}</select></label>
+      ${fld("التاريخ", "date", x?.date || today(), "date")}
+    </div>
+    ${fld("البيان", "title", x?.title, "text", 'required placeholder="مثال: طناء نخيل المسجد لموسم 2026، بيع أرض…"')}
+    <div class="row2">${fld("المبلغ المحصّل", "amount", x?.amount ?? "", "number", "required min=0")}${fld("الطرف الآخر (المستأجر / المشتري / الراهن)", "party", x?.party)}</div>
+    ${fld("المدة / ملاحظة", "note", x?.note, "text", 'placeholder="مثال: من يناير إلى ديسمبر 2026، رقم العقد…"')}`,
+  { altLabel: "حفظ وإصدار إيصال", onSave: v => {
+      if (!n(v.amount)) { toast("أدخل المبلغ"); return false; }
+      const rec = { type: v.type, title: v.title.trim(), amount: n(v.amount), date: v.date, party: v.party.trim(), note: v.note };
+      let item = x;
+      if (x) touch(Object.assign(x, rec)); else { item = touch({ id: uid("as"), ...rec }); c.assets.push(item); }
+      toast("تم الحفظ");
+      if (v.__alt) return () => assetReceipt(item.id);
+  }});
+}
+function assetReceipt(id){
+  const a = MK, c = DB[a], x = c.assets.find(y => y.id === id); if (!x) return;
+  if (!x.receiptNo) { x.receiptNo = nextReceiptNo(); touch(x); save(); }
+  issueReceipt(a, { no: x.receiptNo, date: x.date || today(), memberId: null, name: x.party || "—", groupName: "", amount: x.amount,
+    forText: `${x.type} — ${x.title}`, extra: x.note ? [["المدة / ملاحظة", x.note]] : [] });
+}
+function assetTypesForm(){
+  const a = MK, c = DB[a], types = (c.assetTypes || ASSET_TYPES).slice();
+  modal(`أنواع ${assetsTitle(a)}`, `<p class="sub" style="margin-bottom:10px">غيّر اسم أي نوع أو أضف نوعاً جديداً. تغيير الاسم ينطبق على المبالغ المسجلة به.</p>
+    ${types.map((ty, i) => fld(`النوع ${i + 1}`, "t" + i, ty)).join("")}${fld("نوع جديد (اختياري)", "tnew", "", "text", 'placeholder="مثال: إيجار، وقف، تبرع عيني"')}`,
+  { onSave: v => {
+      const next = types.map((ty, i) => (v["t" + i] || "").trim() || ty);
+      if (v.tnew.trim() && !next.includes(v.tnew.trim())) next.push(v.tnew.trim());
+      types.forEach((ty, i) => { if (next[i] !== ty) c.assets.filter(x => x.type === ty).forEach(x => { x.type = next[i]; touch(x); }); });
+      c.assetTypes = next; c.assetTypesTs = now();
+      if (S.assetType && !next.includes(S.assetType)) S.assetType = "";
+      toast("تم حفظ الأنواع");
+  }});
+}
+const ASSET_ACT = {
+  assetadd(d){ assetForm(d.id); },
+  assetreceipt(d){ assetReceipt(d.id); },
+  assettypes(){ assetTypesForm(); },
+  assetdel(d){
+    const c = DB[MK], x = c.assets.find(y => y.id === d.id); if (!x) return;
+    if (!confirm(`حذف «${x.title}» بمبلغ ${fmt(x.amount)}؟`)) return;
+    c.assets = c.assets.filter(y => y.id !== x.id); tomb(`${MK}:assets:${x.id}`); save(); render();
+  },
+};
+
 /* ============================================================ actions */
 const ACT = {
   home(){ S.a = null; render(); },
@@ -2504,6 +2641,11 @@ const ACT = {
   tab(d){ if (!S.a) S.a = "aza"; S.tab = d.tab; S.q = ""; S.expYear = ""; render(); scrollTo(0,0); },
   gosync(d, el, e){ e?.preventDefault(); S.a = S.a || "aza"; S.tab = "sync"; render(); scrollTo(0,0); },
   print(){ window.print(); },
+  async persist(){
+    let okp = false; try { okp = await navigator.storage?.persist?.(); } catch (e) {}
+    toast(okp ? "تم تفعيل الحفظ الدائم" : "لم يوافق المتصفح بعد — ثبّت التطبيق على الشاشة الرئيسية ثم حاول مرة أخرى");
+    storageInfo();
+  },
   xls(){ exportXLS(); },
   backup(){ backup(); },
   restore(){ restore(); },
@@ -2571,20 +2713,20 @@ const ACT = {
   grpreport(d){ groupReport(S.a, d.g); },
   showrec(d){ const r = DB[S.a].receipts.find(x => x.id === d.id); if (r) showReceipt(S.a, r); },
   mjdelpay(d){
-    const p = DB.majlis.payments.find(x => x.id === d.id); if (!p) return;
-    if (!confirm(`حذف دفعة بمبلغ ${fmt(p.amount)} لـ ${member("majlis", p.memberId)?.name}؟`)) return;
-    DB.majlis.payments = DB.majlis.payments.filter(x => x.id !== d.id); tomb(`majlis:payments:${d.id}`); save();
+    const p = DB[MK].payments.find(x => x.id === d.id); if (!p) return;
+    if (!confirm(`حذف دفعة بمبلغ ${fmt(p.amount)} لـ ${member(MK, p.memberId)?.name}؟`)) return;
+    DB[MK].payments = DB[MK].payments.filter(x => x.id !== d.id); tomb(`majlis:payments:${d.id}`); save();
     const inStmt = !!document.getElementById("ov"); closeModal(); render(); if (inStmt) majlisStatement(p.memberId);
   },
   mjplan(d, el, e){ e?.preventDefault(); planForm(d.id); },
   mjdelplan(d){
-    const used = DB.majlis.payments.some(p => p.planId === d.id);
+    const used = DB[MK].payments.some(p => p.planId === d.id);
     if (used) return toast("لا يمكن حذف بند عليه دفعات مسجلة");
     if (!confirm("حذف هذا البند؟")) return;
-    DB.majlis.plans = DB.majlis.plans.filter(p => p.id !== d.id); tomb(`majlis:plans:${d.id}`); save(); render();
+    DB[MK].plans = DB[MK].plans.filter(p => p.id !== d.id); tomb(`majlis:plans:${d.id}`); save(); render();
   },
   mjstage(d){ stageForm(d.id); },
-  mjdelstage(d){ if (!confirm("حذف هذه المرحلة؟")) return; DB.majlis.stages = DB.majlis.stages.filter(x => x.id !== d.id); tomb(`majlis:stages:${d.id}`); save(); render(); },
+  mjdelstage(d){ if (!confirm("حذف هذه المرحلة؟")) return; DB[MK].stages = DB[MK].stages.filter(x => x.id !== d.id); tomb(`majlis:stages:${d.id}`); save(); render(); },
   mjcontract(d, el, e){ e.preventDefault(); S.tab = "settings"; render(); },
   /* shared */
   ledgeradd(d){ ledgerForm(d.list); },
@@ -2597,7 +2739,7 @@ const ACT = {
   memedit(d){ memberForm(d.id); },
   memdel(d){
     const a = S.a, m = member(a, d.id);
-    const has = a === "aza" ? AZ.memberSummary(m.id).paid > 0 : DB.majlis.payments.some(p => p.memberId === m.id);
+    const has = a === "aza" ? AZ.memberSummary(m.id).paid > 0 : DB[MK].payments.some(p => p.memberId === m.id);
     if (has) {
       if (confirm(`${m.name} لديه مدفوعات مسجلة ولا يمكن حذفه حفاظاً على السجلات.\nهل تريد جعله «غير فعال» بدلاً من ذلك؟`)) { m.active = false; touch(m); save(); render(); }
       return;
@@ -2605,7 +2747,7 @@ const ACT = {
     if (!confirm(`حذف ${m.name} نهائياً؟`)) return;
     DB[a].members = DB[a].members.filter(x => x.id !== m.id); tomb(`${a}:members:${m.id}`);
     if (a === "aza") Object.entries(DB.aza.years).forEach(([y, yr]) => { if (yr.pay[m.id]) { delete yr.pay[m.id]; delete yr.ts[m.id]; tomb(`aza:row:${y}:${m.id}`); } });
-    else if (DB.majlis.overrides[m.id]) { delete DB.majlis.overrides[m.id]; DB.majlis.overridesTs[m.id] = now(); }
+    else if (DB[MK].overrides[m.id]) { delete DB[MK].overrides[m.id]; DB[MK].overridesTs[m.id] = now(); }
     save(); render();
   },
   groups(){ groupsForm(); },
@@ -2616,8 +2758,9 @@ const CHG = {
   group(el){ S.group = el.value; render(); },
   expyear(el){ S.expYear = el.value; render(); },
   repyear(el){ S.repYear = el.value; render(); },
+  assettype(el){ S.assetType = el.value; render(); },
   showoff(el){ S.showOff = el.checked; render(); },
-  stage(el){ const st = DB.majlis.stages.find(x => x.id === el.dataset.id); st.done = el.checked; touch(st); save(); render(); },
+  stage(el){ const st = DB[MK].stages.find(x => x.id === el.dataset.id); st.done = el.checked; touch(st); save(); render(); },
   devname(el){ DEV.name = el.value.trim() || DEV.name; saveDev(); },
   devprefix(el){ DEV.prefix = el.value.trim() || DEV.prefix; saveDev(); },
   azcell(el){
@@ -2636,7 +2779,7 @@ const CHG = {
   },
 };
 
-Object.assign(ACT, RO_ACT, DEBT_ACT, PETTY_ACT); Object.assign(CHG, RO_CHG);
+Object.assign(ACT, RO_ACT, DEBT_ACT, PETTY_ACT, ASSET_ACT); Object.assign(CHG, RO_CHG);
 
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
@@ -2674,17 +2817,17 @@ document.addEventListener("submit", e => {
     save(); render(); toast("تم حفظ الإعدادات");
   }
   if (f.dataset.form === "mjpay") {
-    const m = DB.majlis.members.find(x => x.name === v.member.trim());
+    const m = DB[MK].members.find(x => x.name === v.member.trim());
     if (!m) return toast("اختر العضو من القائمة");
     if (!n(v.amount)) return toast("أدخل المبلغ");
     const p = touch({ id: uid("mp"), memberId: m.id, planId: v.plan, amount: n(v.amount), date: v.date, note: v.note, createdAt: new Date().toISOString() });
-    DB.majlis.payments.push(p);
+    DB[MK].payments.push(p);
     save(); render(); toast(`تم تسجيل ${fmt(v.amount)} لـ ${m.name}`);
     if (e.submitter?.value === "receipt") majlisReceipt(p.id);
   }
 });
 function payHint(inp){
-  const m = DB.majlis.members.find(x => x.name === inp.value.trim());
+  const m = DB[MK].members.find(x => x.name === inp.value.trim());
   const box = document.getElementById("mjhint");
   if (!m) { box.textContent = "اختر العضو لعرض المتبقي عليه."; return; }
   const s = MJ.member(m.id);
