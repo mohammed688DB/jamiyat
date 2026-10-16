@@ -1,13 +1,13 @@
 {
- "name": "الجمعيات الأهلية",
- "short_name": "الجمعيات",
+ "name": "الفلج والطويان",
+ "short_name": "الفلج والطويان",
  "lang": "ar",
  "dir": "rtl",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",
- "background_color": "#f5f4f0",
- "theme_color": "#1f6f6b",
+ "background_color": "#f2f6f8",
+ "theme_color": "#0b6a85",
  "icons": [
   {
    "src": "icon-192.png",
