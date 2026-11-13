@@ -1665,7 +1665,8 @@ async function majlisBatchGroupReports(onlyLate){
     const grp = DB[a].groups.find(g => g.id === gid), gname = shortGroup(grp?.name || "");
     const d = groupReportData(a, gid, "", onlyLate), scope = groupReportScope(a, "");
     const canvas = await drawReport(a, gname, scope, d, onlyLate);
-    ready[gid] = { canvas, text: reportText(a, gname, scope, d), gname };
+    const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+    ready[gid] = { canvas, blob, text: reportText(a, gname, scope, d), gname };
     const row = list.querySelector(`[data-g="${gid}"]`);
     row.querySelector("[data-img]").outerHTML = `<img data-img src="${canvas.toDataURL("image/png")}" alt="صورة التقرير" style="width:100%;max-width:360px;margin:auto;border:1px solid var(--line);border-radius:10px;display:block">`;
     row.querySelector("[data-sum]").textContent = onlyLate ? `${d.late} متأخر — ${fmtCur(a, d.rem)}` : `${d.lines.length} عضو — نسبة السداد ${d.pct.toFixed(0)}%`;
@@ -1674,17 +1675,16 @@ async function majlisBatchGroupReports(onlyLate){
   sendAllBtn.disabled = false; sendAllBtn.textContent = "📤 إرسال الكل دفعة واحدة (واتساب)";
   f.addEventListener("click", async e => {
     if (e.target.closest("#sendall")) {
-      const files = [];
-      for (const gid of gids) {
-        const r = ready[gid]; if (!r) continue;
-        const blob = await new Promise(res => r.canvas.toBlob(res, "image/png"));
-        files.push(new File([blob], `${onlyLate ? "تقرير متخلفين" : "تقرير مجموعة"} ${r.gname} ${today()}.png`, { type: "image/png" }));
-      }
+      const files = gids.map(gid => ready[gid]).filter(Boolean)
+        .map(r => new File([r.blob], `${onlyLate ? "تقرير متخلفين" : "تقرير مجموعة"} ${r.gname} ${today()}.png`, { type: "image/png" }));
       if (navigator.canShare && navigator.canShare({ files })) {
         try { await navigator.share({ files, title: onlyLate ? "تقارير المتخلفين" : "تقارير المجموعات" }); return; } catch (err) { if (err.name === "AbortError") return; }
       }
-      files.forEach(file => download(file.name, file, file.type));
-      toast("نُزّلت كل الصور — أرفقها كلها في محادثة واتساب");
+      // المتصفح يمنع عدة تنزيلات تلقائية دفعة واحدة — نجمعها في ملف مضغوط واحد بدلاً من ذلك
+      const entries = await Promise.all(files.map(async file => ({ name: file.name, data: new Uint8Array(await file.arrayBuffer()) })));
+      const zname = `${onlyLate ? "تقارير متخلفين" : "تقارير مجموعات"} ${today()}.zip`;
+      download(zname, makeZip(entries), "application/zip");
+      toast(`نُزّل ملف ${zname} — ففّه (فك الضغط) ثم أرفق الصور في محادثة واتساب`);
       return;
     }
     const b = e.target.closest("[data-r]"); if (!b) return;
@@ -1693,13 +1693,12 @@ async function majlisBatchGroupReports(onlyLate){
     const ph = row.querySelector("[data-phone]").value.trim();
     if (ph !== (grp.phone || "")) { grp.phone = ph; touch(grp); save(); }
     if (b.dataset.r === "wa") { window.open(waLink(ph, r.text), "_blank"); return; }
-    const blob = await new Promise(res => r.canvas.toBlob(res, "image/png"));
     const fname = `${onlyLate ? "تقرير متخلفين" : "تقرير مجموعة"} ${r.gname} ${today()}.png`;
-    const file = new File([blob], fname, { type: "image/png" });
+    const file = new File([r.blob], fname, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file] }); return; } catch (err) { if (err.name === "AbortError") return; }
     }
-    download(fname, blob, "image/png"); window.open(waLink(ph, r.text), "_blank");
+    download(fname, r.blob, "image/png"); window.open(waLink(ph, r.text), "_blank");
     toast(`نُزّلت صورة تقرير ${r.gname} — أرفقها في محادثة واتساب`);
   });
 }
@@ -2639,6 +2638,32 @@ function download(name, content, type){
   const blob = new Blob([content], { type });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+/* minimal zip (no compression) — browsers block multiple automatic downloads fired in one go,
+   so several files meant to go out together are bundled into one .zip instead */
+function makeZip(entries){
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); return c >>> 0; });
+  const crc32 = buf => { let c = 0xFFFFFFFF; for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const enc = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const { name, data } of entries) {
+    const nameBytes = enc.encode(name), crc = crc32(data), size = data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(6, 0, true); lh.setUint16(8, 0, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, nameBytes.length, true);
+    parts.push(new Uint8Array(lh.buffer), nameBytes, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(6, 0, true); ch.setUint16(8, 0, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, nameBytes.length, true);
+    ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), nameBytes);
+    offset += lh.byteLength + nameBytes.length + size;
+  }
+  const centralStart = offset, centralSize = sum(central, p => p.length);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, centralSize, true); end.setUint32(16, centralStart, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
 }
 function stamp(){ return new Date().toISOString().slice(0,10); }
 function backup(){
