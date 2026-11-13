@@ -714,7 +714,7 @@ const MJ_VIEWS = {
         <td class="noprint"><button class="btn sm" data-act="mjpayfor" data-m="${m.id}">+ دفعة</button></td></tr>`;
     }
     return pageHead("المساهمات", "المدفوع / المطلوب لكل عضو في كل بند. اضغط على الاسم لعرض كشف الحساب، أو على اسم البند لتعديله.",
-      printBtn + xlsBtn + `<button class="btn pri" data-act="mjplan">+ مساهمة جديدة</button>`) + `
+      `<button class="btn pri" data-act="mjbatchreports">📨 إرسال تقارير كل المجموعات</button>` + printBtn + xlsBtn + `<button class="btn pri" data-act="mjplan">+ مساهمة جديدة</button>`) + `
     <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions("majlis", S.group, true)}</select>${searchBox()}
       <label class="fld chk" style="margin:0"><input type="checkbox" data-chg="showoff" ${S.showOff ? "checked" : ""}><span>إظهار غير الفعالين</span></label></div>
     <div class="card"><div class="tw"><table class="export sticky1"><thead><tr><th>الاسم</th>${plans.map(p => `<th class="n"><a href="#" data-act="mjplan" data-id="${p.id}" title="تعديل البند">${esc(p.name)}</a><br><span class="t-mut" style="font-weight:500">${p.amount ? fmt(p.amount) : "حسب الاتفاق"}</span></th>`).join("")}<th class="n">إجمالي المدفوع</th><th class="n">المتبقي</th><th class="noprint"></th></tr></thead>
@@ -754,13 +754,13 @@ const MJ_VIEWS = {
       .sort((a,b) => DB.majlis.groups.findIndex(g => g.id === a.m.groupId) - DB.majlis.groups.findIndex(g => g.id === b.m.groupId));
     let body = "", lastG, i = 0;
     for (const x of rows) {
-      if (x.m.groupId !== lastG) { lastG = x.m.groupId; body += `<tr class="grp"><td colspan="8">${esc(groupName("majlis", lastG))} <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}" style="margin-inline-start:10px">📊 تقرير المجموعة</button></td></tr>`; }
+      if (x.m.groupId !== lastG) { lastG = x.m.groupId; body += `<tr class="grp"><td colspan="8">${esc(groupName("majlis", lastG))} <button class="btn sm noprint" data-act="grpreport" data-g="${lastG}" data-late="1" style="margin-inline-start:10px">📊 تقرير المتخلفين</button></td></tr>`; }
       i++;
       body += `<tr data-name="${esc(norm(x.m.name))}"><td class="n">${i}</td><td class="nm"><a href="#" data-act="mjstmt" data-m="${x.m.id}">${esc(x.m.name)}</a></td><td class="t-mut">${esc(shortGroup(groupName("majlis", x.m.groupId)))}</td>
       <td class="n">${fmt(x.req)}</td><td class="n">${fmt(x.paid)}</td><td class="n t-bad">${fmt(x.rem)}</td>
       <td>${x.plans.filter(p => p.rem > 0).map(p => `<span class="pill warn" style="margin:1px">${esc(p.p.name)}: ${fmt(p.rem)}</span>`).join(" ")}</td><td>${esc(x.m.note)}</td></tr>`;
     }
-    return pageHead("قائمة المتخلفين عن الدفع", `تاريخ التحديث: ${new Date().toLocaleDateString("ar-OM-u-nu-latn")}`, printBtn + xlsBtn) + `
+    return pageHead("قائمة المتخلفين عن الدفع", `تاريخ التحديث: ${new Date().toLocaleDateString("ar-OM-u-nu-latn")}`, `<button class="btn pri" data-act="mjbatchreports" data-late="1">📨 إرسال تقارير المتخلفين لكل مجموعة</button>` + printBtn + xlsBtn) + `
     <div class="bar noprint"><select class="inp" data-chg="group">${groupOptions("majlis", S.group, true)}</select>${searchBox()}</div>
     <div class="kpis">${kpi("عدد المتخلفين", rows.length, "", "acc")}${kpi("مجموع المبالغ المتبقية", money(sum(rows, r => r.rem)) + cur(), "", "bad")}</div>
     <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">ت</th><th>الاسم</th><th>المجموعة</th><th class="n">المطلوب</th><th class="n">المدفوع</th><th class="n">المتبقي</th><th>تفصيل</th><th>الملاحظات</th></tr></thead><tbody>
@@ -1475,7 +1475,7 @@ function azaGroupPay(gid){
 }
 
 /* ============================================================ group status report (image + WhatsApp, like receipts) */
-function groupReportData(a, gid, flt){
+function groupReportData(a, gid, flt, onlyLate){
   const ms = DB[a].members.filter(m => m.groupId === gid && m.active !== false && !m.exempt);
   let lines;
   if (a === "aza") {
@@ -1492,6 +1492,7 @@ function groupReportData(a, gid, flt){
         detail: ps.filter(x => x.rem > 0).map(x => flt ? `باقي ${fmt(x.rem)} من ${fmt(x.req)}` : `${x.p.name}: ${fmt(x.rem)}`).join("، ") };
     });
   }
+  if (onlyLate) lines = lines.filter(l => l.rem > 0);
   lines.sort((x, y) => (y.rem > 0) - (x.rem > 0) || y.rem - x.rem);
   const req = sum(lines, l => l.req), paid = sum(lines, l => l.paid), rem = sum(lines, l => l.rem);
   return { lines, req, paid, rem, late: lines.filter(l => l.rem > 0).length, pct: req ? Math.min(100, (req - rem) / req * 100) : 100 };
@@ -1511,7 +1512,7 @@ function reportText(a, gname, scope, d){
     (done.length && late.length ? `\n✅ المسددون بالكامل (${done.length}): ${done.map(l => l.name).join("، ")}\n` : "") +
     `\nأمين الصندوق: ${treasurer(a)}`;
 }
-async function drawReport(a, gname, scope, d){
+async function drawReport(a, gname, scope, d, onlyLate){
   try { await document.fonts?.load?.("700 30px Tajawal"); await document.fonts?.ready; } catch (e) {}
   const W = 900, FF = 'Tajawal, "Segoe UI", Tahoma, Arial, sans-serif', font = (w, s) => `${w} ${s}px ${FF}`;
   const c = document.createElement("canvas"), g = c.getContext("2d");
@@ -1531,7 +1532,7 @@ async function drawReport(a, gname, scope, d){
   g.direction = "rtl";
   g.fillStyle = "#fff"; g.textAlign = "right";
   g.font = font(800, 50); fillT(g, DB[a].settings.title, W - 50, 95);
-  g.font = font(500, 30); fillT(g, "تقرير حالة المجموعة", W - 50, 150);
+  g.font = font(500, 30); fillT(g, onlyLate ? "تقرير المتخلفين عن الدفع" : "تقرير حالة المجموعة", W - 50, 150);
   g.textAlign = "left"; g.font = font(500, 26); fillT(g, `التاريخ: ${today()}`, 50, 150);
   // three stat boxes
   const bw = (W - 100 - 2 * 20) / 3, stats = [["المدفوع", fmtCur(a, d.paid), accent], ["المتبقي", fmtCur(a, d.rem), d.rem ? bad : good], ["نسبة السداد", `${d.pct.toFixed(0)}%`, accent]];
@@ -1580,14 +1581,14 @@ async function drawReport(a, gname, scope, d){
   g.fillStyle = "#55534e"; g.font = font(500, 24); fillT(g, `أمين الصندوق: ${treasurer(a)} — ${DB[a].settings.title}`, W / 2, H - 50);
   return c;
 }
-async function groupReport(a, gid){
+async function groupReport(a, gid, onlyLate){
   gid = gid || S.group || DB[a].groups[0]?.id;
   if (!gid) return toast("لا توجد مجموعات");
   const ys = AZ.years();
   const fltOpts = a === "aza"
     ? `<option value="">كل السنوات</option>` + ys.slice().reverse().map(y => `<option value="${y}" ${y === ys.at(-1) ? "selected" : ""}>${y}</option>`).join("")
     : `<option value="">جميع البنود</option>` + DB.majlis.plans.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
-  const f = modal("تقرير حالة المجموعة", `
+  const f = modal(onlyLate ? "تقرير المتخلفين عن الدفع" : "تقرير حالة المجموعة", `
     <div class="row2">
       <label class="fld"><span>المجموعة</span><select class="inp" name="gid">${groupOptions(a, gid)}</select></label>
       <label class="fld"><span>${a === "aza" ? "السنة" : "البند"}</span><select class="inp" name="flt">${fltOpts}</select></label>
@@ -1603,8 +1604,8 @@ async function groupReport(a, gid){
   const draw = async () => {
     grp = DB[a].groups.find(x => x.id === f.querySelector("[name=gid]").value);
     gname = shortGroup(grp?.name || "");
-    const flt = f.querySelector("[name=flt]").value, d = groupReportData(a, grp.id, flt), scope = groupReportScope(a, flt);
-    canvas = await drawReport(a, gname, scope, d);
+    const flt = f.querySelector("[name=flt]").value, d = groupReportData(a, grp.id, flt, onlyLate), scope = groupReportScope(a, flt);
+    canvas = await drawReport(a, gname, scope, d, onlyLate);
     text = reportText(a, gname, scope, d);
     f.querySelector("#rp-img").className = "";
     f.querySelector("#rp-img").innerHTML = `<img src="${canvas.toDataURL("image/png")}" alt="صورة التقرير" style="width:100%;max-width:440px;margin:auto;border:1px solid var(--line);border-radius:10px;display:block">`;
@@ -1627,6 +1628,79 @@ async function groupReport(a, gid){
     }
     download(fname, blob, "image/png"); window.open(waLink(ph, text), "_blank");
     toast("نُزّلت صورة التقرير — أرفقها في محادثة واتساب");
+  });
+}
+
+/* يجهّز تقرير المتخلفين لكل مجموعة فيها متأخرون دفعة واحدة، بحيث تُرسل كل واحد بضغطة بدون الرجوع والبدء من جديد */
+async function majlisBatchGroupReports(onlyLate){
+  const a = "majlis";
+  let gids;
+  if (onlyLate) {
+    const t = MJ.totals();
+    gids = [...new Set(t.per.filter(x => x.rem > 0).map(x => x.m.groupId))]
+      .sort((x, y) => DB[a].groups.findIndex(g => g.id === x) - DB[a].groups.findIndex(g => g.id === y));
+  } else {
+    gids = DB[a].groups.filter(g => DB[a].members.some(m => m.groupId === g.id && m.active !== false)).map(g => g.id);
+  }
+  if (!gids.length) return toast(onlyLate ? "لا يوجد متأخرون" : "لا توجد مجموعات");
+  const f = modal(onlyLate ? "إرسال تقارير المتخلفين — كل المجموعات" : "إرسال تقارير المجموعات — الكل", `
+    <p class="sub" style="margin-bottom:12px">تقرير كل مجموعة جاهز بالأسفل. اضغط «إرسال الكل دفعة واحدة» لإرسال كل الصور معاً في مشاركة واحدة (كل صورة تبقى منفصلة)، أو أرسل كل مجموعة على حدة لرقمها الخاص بالأسفل.</p>
+    <div class="bar" style="margin-bottom:14px"><button type="button" class="btn pri" id="sendall" disabled>📤 إرسال الكل دفعة واحدة (جارٍ التجهيز…)</button></div>
+    <div id="batch-list"></div>`, { wide: true });
+  const list = f.querySelector("#batch-list");
+  for (const gid of gids) {
+    const row = document.createElement("div");
+    row.className = "card"; row.style.margin = "0 0 14px"; row.dataset.g = gid;
+    const grp = DB[a].groups.find(g => g.id === gid);
+    row.innerHTML = `<div class="card-b">
+      <div class="bar" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">${esc(shortGroup(grp?.name || ""))}</h3><span class="t-mut" data-sum>جارٍ الإعداد…</span></div>
+      <div data-img class="empty">جارٍ إعداد التقرير…</div>
+      <label class="fld" style="margin-top:10px"><span>رقم واتساب صاحب المجموعة</span><input class="inp" data-phone type="tel" inputmode="tel" value="${esc(grp?.phone || "")}" placeholder="مثال: 9xxxxxxx" style="direction:ltr;text-align:right"></label>
+      <div class="bar"><button type="button" class="btn pri" data-r="share">📤 مشاركة الصورة (واتساب)</button><button type="button" class="btn" data-r="wa">💬 إرسال نصي</button></div>
+    </div>`;
+    list.appendChild(row);
+  }
+  const ready = {};
+  for (const gid of gids) {
+    const grp = DB[a].groups.find(g => g.id === gid), gname = shortGroup(grp?.name || "");
+    const d = groupReportData(a, gid, "", onlyLate), scope = groupReportScope(a, "");
+    const canvas = await drawReport(a, gname, scope, d, onlyLate);
+    ready[gid] = { canvas, text: reportText(a, gname, scope, d), gname };
+    const row = list.querySelector(`[data-g="${gid}"]`);
+    row.querySelector("[data-img]").outerHTML = `<img data-img src="${canvas.toDataURL("image/png")}" alt="صورة التقرير" style="width:100%;max-width:360px;margin:auto;border:1px solid var(--line);border-radius:10px;display:block">`;
+    row.querySelector("[data-sum]").textContent = onlyLate ? `${d.late} متأخر — ${fmtCur(a, d.rem)}` : `${d.lines.length} عضو — نسبة السداد ${d.pct.toFixed(0)}%`;
+  }
+  const sendAllBtn = f.querySelector("#sendall");
+  sendAllBtn.disabled = false; sendAllBtn.textContent = "📤 إرسال الكل دفعة واحدة (واتساب)";
+  f.addEventListener("click", async e => {
+    if (e.target.closest("#sendall")) {
+      const files = [];
+      for (const gid of gids) {
+        const r = ready[gid]; if (!r) continue;
+        const blob = await new Promise(res => r.canvas.toBlob(res, "image/png"));
+        files.push(new File([blob], `${onlyLate ? "تقرير متخلفين" : "تقرير مجموعة"} ${r.gname} ${today()}.png`, { type: "image/png" }));
+      }
+      if (navigator.canShare && navigator.canShare({ files })) {
+        try { await navigator.share({ files, title: onlyLate ? "تقارير المتخلفين" : "تقارير المجموعات" }); return; } catch (err) { if (err.name === "AbortError") return; }
+      }
+      files.forEach(file => download(file.name, file, file.type));
+      toast("نُزّلت كل الصور — أرفقها كلها في محادثة واتساب");
+      return;
+    }
+    const b = e.target.closest("[data-r]"); if (!b) return;
+    const row = b.closest("[data-g]"), gid = row.dataset.g, grp = DB[a].groups.find(g => g.id === gid);
+    const r = ready[gid]; if (!r) return;
+    const ph = row.querySelector("[data-phone]").value.trim();
+    if (ph !== (grp.phone || "")) { grp.phone = ph; touch(grp); save(); }
+    if (b.dataset.r === "wa") { window.open(waLink(ph, r.text), "_blank"); return; }
+    const blob = await new Promise(res => r.canvas.toBlob(res, "image/png"));
+    const fname = `${onlyLate ? "تقرير متخلفين" : "تقرير مجموعة"} ${r.gname} ${today()}.png`;
+    const file = new File([blob], fname, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (err) { if (err.name === "AbortError") return; }
+    }
+    download(fname, blob, "image/png"); window.open(waLink(ph, r.text), "_blank");
+    toast(`نُزّلت صورة تقرير ${r.gname} — أرفقها في محادثة واتساب`);
   });
 }
 
@@ -2414,7 +2488,8 @@ const ACT = {
   mjgreceipt(d){ majlisBatchReceipt(d.b); },
   mjgpay(d){ majlisGroupPay(d.g); },
   azgpay(d){ azaGroupPay(d.g); },
-  grpreport(d){ groupReport(S.a, d.g); },
+  grpreport(d){ groupReport(S.a, d.g, d.late === "1"); },
+  mjbatchreports(d){ majlisBatchGroupReports(d.late === "1"); },
   showrec(d){ const r = DB[S.a].receipts.find(x => x.id === d.id); if (r) showReceipt(S.a, r); },
   mjdelpay(d){
     const p = DB.majlis.payments.find(x => x.id === d.id); if (!p) return;
