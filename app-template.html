@@ -1399,7 +1399,7 @@ function fillT(g, text, x, y){
   const sx = rightX - wL - (L ? gap : 0) - symW;
   const p = new Path2D(); p.addPath(OMR_PATH, new DOMMatrix([s, 0, 0, s, sx - OMR_BOX[0] * s, y - symH - OMR_BOX[1] * s]));
   g.fill(p);
-  if (R) g.fillText(R, sx - gap, y);
+  if (R) fillT(g, R, sx - gap, y);  // the rest may contain another «ر.ع»
   g.textAlign = align;
 }
 
@@ -2021,7 +2021,7 @@ function importSyncText(txt, name, size){
 /* ============================================================ جمعية مغلقة (closed rotating association)
    every subscription pays a fixed monthly instalment for N months; each month the instalments go into the fund
    and the next subscriber in turn receives instalment × N as soon as the fund covers it (same rule as the Excel sheet) */
-const RO_TABS = [["dash", "لوحة المعلومات"], ["pay", "الأقساط الشهرية"], ["turns", "الأدوار والاستلام"], ["late", "المتأخرون"], ["members", "المشتركون"], ["receipts", "الإيصالات"], ["settings", "الإعدادات"], ["sync", "المزامنة"]];
+const RO_TABS = [["dash", "لوحة المعلومات"], ["pay", "الأقساط الشهرية"], ["turns", "الأدوار والاستلام"], ["fund", "حركة الصندوق"],["late", "المتأخرون"], ["members", "المشتركون"], ["receipts", "الإيصالات"], ["settings", "الإعدادات"], ["sync", "المزامنة"]];
 function isRosca(a){ return typeof a === "string" && a.startsWith("r_") && !!DB[a]; }
 function tabsOf(a){ return TABS[a] || (isRosca(a) ? RO_TABS : isContrib(a) ? CONTRIB_TABS.map(([k, l]) => k === "assets" ? [k, assetsTitle(a)] : [k, l]) : null); }
 function assocList(){ return ["aza", "majlis", ...(DB.contribIds || []).filter(k => DB[k]), ...(DB.roscaIds || []).filter(k => DB[k])]; }
@@ -2144,16 +2144,31 @@ const RO_VIEWS = {
                       : `<button class="btn sm ghost" data-act="rofix" data-id="${s.id}" title="تثبيت شهر الاستلام">📌</button><button class="btn sm pri" data-act="ropayout" data-id="${s.id}">💵 تسليم المبلغ</button>`}
         </td></tr>`;
     }).join("");
-    const names = ids => ids.map(id => { const s = member(a, id); return `${esc(s.name)} <span class="t-mut">(${fmt(RO.amount(r, s))})</span>`; }).join("<br>");
-    const flow = sc.rows.map(x => `<tr ${x.i === ni ? 'style="background:var(--accent-soft)"' : ""}><td style="white-space:nowrap">${x.i + 1}. ${RO.label(r, x.i)}</td><td class="n">${fmt(x.inflow)}</td>
-      <td>${x.out.length ? names(x.out) : `<span class="t-mut">—</span>`}</td><td class="n ${x.bal < 0 ? "t-bad" : ""}"><b>${fmt(x.bal)}</b></td></tr>`).join("");
     const N = RO.N(r);
     return pageHead("الأدوار والاستلام", "يُحسب شهر الاستلام تلقائياً حسب ترتيب الدور: كل شهر تُضاف الأقساط للصندوق، ويستلم صاحب الدور التالي متى ما كفى الرصيد مبلغه (القسط × عدد الأشهر). غيّر الترتيب بالأسهم، أو ثبّت شهراً بـ 📌.", printBtn + xlsBtn + `<button class="btn" data-act="roperiod">⏱ المدة: ${N} شهراً</button>` + RO_REPORT_BTNS) + `
     ${sc.unscheduled.length ? `<div class="note">لا يكفي رصيد الصندوق خلال مدة الجمعية لصرف ${sc.unscheduled.length} اشتراكاً — راجع الأقساط أو المدة.</div>` : ""}
     <div class="card"><div class="tw"><table class="export"><thead><tr><th class="n">الدور</th><th>المستلم</th><th class="n">القسط</th><th class="n">المبلغ المستحق</th><th>شهر الاستلام</th><th>الحالة</th><th class="noprint"></th></tr></thead>
     <tbody>${rows}</tbody><tfoot><tr class="grand"><td></td><td>المجموع</td><td class="n">${fmt(RO.pot(r))}</td><td class="n">${fmt(sum(shares, s => RO.amount(r, s)))}</td><td></td><td></td><td class="noprint"></td></tr></tfoot></table></div></div>
-    <div class="card" style="margin-top:14px"><div class="card-h"><h2>حركة الصندوق المتوقعة شهراً بشهر</h2></div>
-      <div class="tw"><table class="export"><thead><tr><th>الشهر</th><th class="n">الوارد</th><th>يستلم في هذا الشهر</th><th class="n">الرصيد بعد الصرف</th></tr></thead><tbody>${flow}</tbody></table></div></div>`;
+    <p class="sub noprint" style="margin-top:12px">حركة الصندوق شهراً بشهر صارت في تبويب مستقل: <a href="#" data-act="tab" data-tab="fund">حركة الصندوق ←</a></p>`;
+  },
+
+  fund(){
+    const a = S.a, r = DB[a], d = roFundData(a), names = ids => ids.map(id => { const s = member(a, id); return `${esc(s.name)} <span class="t-mut">(${fmt(RO.amount(r, s))})</span>`; }).join("<br>");
+    const flow = d.rows.map(x => `<tr ${x.i === d.ni ? 'style="background:var(--accent-soft)"' : ""}><td style="white-space:nowrap">${x.i + 1}. ${RO.label(r, x.i)}</td>
+      <td class="n">${fmt(x.inflow)}</td><td class="n">${x.i < d.dm ? `<span class="${x.got + 1e-9 < x.inflow ? "t-bad" : "t-good"}">${fmt(x.got)}</span>` : `<span class="t-mut">—</span>`}</td>
+      <td>${x.out.length ? names(x.out) : `<span class="t-mut">—</span>`}</td><td class="n">${x.outAmt ? fmt(x.outAmt) : "—"}</td>
+      <td class="n ${x.bal < 0 ? "t-bad" : ""}"><b>${fmt(x.bal)}</b></td><td class="n">${x.i < d.dm ? `<b class="${x.act < 0 ? "t-bad" : ""}">${fmt(x.act)}</b>` : `<span class="t-mut">—</span>`}</td></tr>`).join("");
+    return pageHead("حركة الصندوق شهراً بشهر", "الوارد المتوقع = مجموع الأقساط الشهرية، والمحصّل = ما سُجّل فعلاً. الرصيد المتوقع حسب جدول الأدوار، والرصيد الفعلي = المحصّل − ما صُرف فعلاً.",
+      printBtn + xlsBtn + `<button class="btn pri" data-act="rofundreport">📊 تقرير شامل (واتساب)</button><button class="btn" data-act="rofundperson">👤 تقرير مشترك</button>`) + `
+    <div class="kpis">
+      ${kpi("الوارد الشهري المتوقع", money(d.t.pot) + cur(), `${d.N} شهراً — الإجمالي ${fmt(d.t.pot * d.N)}`, "acc")}
+      ${kpi("المحصّل فعلاً", money(d.t.collected) + cur(), `المتوقع حتى الآن ${fmt(d.dueAll)}`, d.t.collected + 1e-9 < d.dueAll ? "bad" : "good")}
+      ${kpi("صُرف فعلاً", money(d.t.paidOut) + cur(), `${d.t.done} من ${d.t.count} أدوار`)}
+      ${kpi("رصيد الصندوق الفعلي", money(d.t.fund) + cur(), d.dm ? `المتوقع الآن ${fmt(d.expNow)}` : "", d.t.fund >= 0 ? "good" : "bad")}
+    </div>
+    <div class="card"><div class="tw"><table class="export"><thead><tr><th>الشهر</th><th class="n">الوارد المتوقع</th><th class="n">المحصّل فعلاً</th><th>يستلم في هذا الشهر</th><th class="n">يُصرف للمستلم</th><th class="n">الرصيد المتوقع</th><th class="n">الرصيد الفعلي</th></tr></thead>
+    <tbody>${flow}</tbody><tfoot><tr class="grand"><td>المجموع</td><td class="n">${fmt(d.t.pot * d.N)}</td><td class="n">${fmt(d.t.collected)}</td><td></td><td class="n">${fmt(sum(d.rows, x => x.outAmt))}</td><td class="n">${fmt(d.rows.at(-1)?.bal ?? 0)}</td><td class="n">${fmt(d.t.fund)}</td></tr></tfoot></table></div></div>
+    ${d.sc.unscheduled.length ? `<div class="note" style="margin-top:12px">لا يكفي رصيد الصندوق خلال المدة لصرف ${d.sc.unscheduled.length} اشتراكاً.</div>` : ""}`;
   },
 
   late(){
@@ -2544,6 +2559,137 @@ function roPersonReport(sid){
       savePhone: (ph, cur) => { const d = roPersonData(a, cur.id); if (ph && ph !== d.phone) { d.shares.forEach(s => { if (!s.phone) { s.phone = ph; touch(s); } }); if (!d.shares.some(s => s.phone === ph)) { d.shares[0].phone = ph; touch(d.shares[0]); } save(); } } });
 }
 
+/* ============================================================ حركة الصندوق (fund movement) */
+function roFundData(a){
+  const r = DB[a], t = RO.totals(r), sc = RO.schedule(r), ni = RO.nowIdx(r), N = RO.N(r), dm = RO.dueMonths(r), shares = RO.shares(r);
+  let act = 0;
+  const rows = sc.rows.map(x => {
+    const got = sum(r.members, s => n(RO.row(r, s.id)[x.i]));
+    const outAmt = sum(x.out, id => { const s = member(a, id); return s.paidOut ? n(s.paidOut.amount) : RO.amount(r, s); });
+    const paidOutNow = sum(r.members.filter(s => s.paidOut && n(s.paidOut.month) === x.i), s => n(s.paidOut.amount));
+    act += got - paidOutNow;
+    return { ...x, got, outAmt, paidOutNow, act };
+  });
+  return { r, t, sc, ni, N, dm, rows, dueAll: sum(shares, s => RO.due(r, s)), expNow: dm ? rows[dm - 1].bal : 0 };
+}
+function roFundReport(){
+  const a = S.a;
+  shareWindow("تقرير حركة الصندوق — شامل", "", async () => {
+    const d = roFundData(a), { r, t, N } = d;
+    const canvas = await drawDoc(a, {
+      sub: "تقرير حركة الصندوق شهراً بشهر",
+      stats: [["الوارد الشهري", fmtCur(a, t.pot), null, `الإجمالي ${fmt(t.pot * N)} خلال ${N} شهراً`],
+              ["المحصّل فعلاً", fmtCur(a, t.collected), t.collected + 1e-9 < d.dueAll ? RC.bad : RC.good, `المتوقع حتى الآن ${fmt(d.dueAll)}`],
+              ["رصيد الصندوق الفعلي", fmtCur(a, t.fund), t.fund >= 0 ? RC.good : RC.bad, d.dm ? `المتوقع الآن ${fmt(d.expNow)}` : ""],
+              ["صُرف فعلاً", fmtCur(a, t.paidOut), null, `${t.done} من ${t.count} أدوار`],
+              ["المتأخرات", t.arrears ? fmtCur(a, t.arrears) : "لا يوجد ✓", t.arrears ? RC.bad : RC.good],
+              ["الرصيد في النهاية", fmtCur(a, d.rows.at(-1)?.bal ?? 0), null, "حسب جدول الأدوار"]],
+      info: [["مدة الجمعية", `${N} شهراً — من ${RO.label(r, 0)} إلى ${RO.label(r, N - 1)}`],
+             ["الشهر الحالي", d.ni < 0 ? `لم تبدأ (تبدأ ${RO.label(r, 0)})` : d.ni >= N ? "انتهت" : `الشهر ${d.ni + 1} من ${N} — ${RO.label(r, d.ni)}`]],
+      sections: [{
+        title: "حركة الصندوق شهراً بشهر",
+        cols: [{ h: "#", x: 822, w: 40 }, { h: "الشهر", x: 795, al: "right", w: 165 }, { h: "الوارد", x: 565, w: 80 }, { h: "المحصّل", x: 470, w: 85 },
+               { h: "يُصرف", x: 370, w: 95 }, { h: "الرصيد المتوقع", x: 250, w: 115 }, { h: "الرصيد الفعلي", x: 115, w: 115 }],
+        rows: d.rows.map(x => ({ bg: x.out.length ? "#e8f5e8" : x.i === d.ni ? "#fff6e0" : null,
+          cells: [{ t: x.i + 1, col: RC.mut }, { t: RO.label(r, x.i), w: 700 }, fmt(x.inflow),
+                  x.i < d.dm ? { t: fmt(x.got), col: x.got + 1e-9 < x.inflow ? RC.bad : RC.good, w: 700 } : { t: "—", col: RC.mut },
+                  x.outAmt ? { t: fmt(x.outAmt), w: 700 } : { t: "—", col: RC.mut },
+                  { t: fmt(x.bal), col: x.bal < 0 ? RC.bad : "#1b1b19", w: 700 },
+                  x.i < d.dm ? { t: fmt(x.act), col: x.act < 0 ? RC.bad : RC.good, bold: true } : { t: "—", col: RC.mut }],
+          sub: x.out.length ? { t: "★ يستلم: " + x.out.map(id => { const s = member(a, id); return `${s.name} (الدور ${s.order}${s.paidOut ? " — استلم ✓" : ""})`; }).join("، "), col: RC.good } : null,
+          subWide: 560 })),
+        total: ["", { t: "المجموع" }, fmt(t.pot * N), fmt(t.collected), fmt(sum(d.rows, x => x.outAmt)), fmt(d.rows.at(-1)?.bal ?? 0), fmt(t.fund)],
+        note: "الأخضر = شهر فيه استلام، والأصفر = الشهر الحالي. المحصّل الأحمر = أقل من المتوقع.",
+      }],
+    });
+    const text = `${r.settings.title}\n*تقرير حركة الصندوق*\nالتاريخ: ${today()}\nالمدة: ${N} شهراً (${RO.label(r, 0)} – ${RO.label(r, N - 1)})\n\n` +
+      `الوارد الشهري: ${fmtCur(a, t.pot)}\nالمحصّل فعلاً: ${fmtCur(a, t.collected)} (المتوقع حتى الآن ${fmt(d.dueAll)})\nصُرف فعلاً: ${fmtCur(a, t.paidOut)}\n*رصيد الصندوق الفعلي: ${fmtCur(a, t.fund)}*\n\n*الأشهر:*\n` +
+      d.rows.map(x => `${x.i + 1}. ${RO.label(r, x.i)}: وارد ${fmt(x.inflow)}${x.i < d.dm ? ` / محصّل ${fmt(x.got)}` : ""}${x.out.length ? ` — يستلم ${x.out.map(id => member(a, id).name).join("، ")} (${fmt(x.outAmt)})` : ""} — الرصيد ${fmt(x.bal)}`).join("\n") +
+      `\n\nأمين الصندوق: ${treasurer(a)}`;
+    return { canvas, text, fname: `حركة الصندوق ${r.settings.title} ${today()}.png` };
+  }, { who: "المستلم (شخص أو مجموعة)", phone: DB[a].settings.reportPhone || "",
+       savePhone: ph => { if (ph !== (DB[a].settings.reportPhone || "")) { DB[a].settings.reportPhone = ph; DB[a].settingsTs = now(); save(); } } });
+}
+/* one subscriber's movement with the fund: what he put in each month, what he took out, and his running net position */
+function roFundPersonData(a, sid){
+  const p = roPersonData(a, sid), { r } = p;
+  let cum = 0;
+  const rows = p.months.map(x => {
+    const outs = x.out.map(o => ({ o, amt: o.s.paidOut ? n(o.s.paidOut.amount) : o.amt, done: !!o.s.paidOut }));
+    const recv = sum(outs.filter(o => o.done), o => o.amt);
+    cum += x.paid - recv;
+    return { ...x, outs, recv, exp: sum(outs.filter(o => !o.done), o => o.amt), cum };
+  });
+  const received = sum(p.turns.filter(x => x.s.paidOut), x => n(x.s.paidOut.amount));
+  return { ...p, rows, received, net: p.paid - received };
+}
+function roFundPerson(sid){
+  const a = S.a, r = DB[a], people = roPeople(r);
+  if (!people.length) return toast("لا يوجد مشتركون");
+  sid = sid || people[0][0].id;
+  const k0 = norm(member(a, sid)?.name || "").trim();
+  const opts = people.map(p => `<option value="${p[0].id}" ${norm(p[0].name).trim() === k0 ? "selected" : ""}>${esc(p[0].name)} — ${p.length > 1 ? `${p.length} أدوار: ${p.map(s => s.order).join("، ")}` : `الدور ${p[0].order}`}</option>`).join("");
+  shareWindow("حركة الصندوق — تقرير مشترك", `<label class="fld"><span>المشترك</span><select class="inp" name="who">${opts}</select></label>`, async f => {
+    const id = f.querySelector("[name=who]").value, d = roPersonData(a, id), N = d.N, dm = RO.dueMonths(r), c = v => fmtCur(a, v);
+    /* per turn: instalments paid up to (and including) the payout month, the amount received, and what is completed after it */
+    const plans = d.turns.map(x => {
+      const inst = n(x.s.inst), row = RO.row(r, x.s.id), m = x.m, amt = x.s.paidOut ? n(x.s.paidOut.amount) : x.amt;
+      if (m === undefined) return { x, inst, amt, m };
+      const k = m + 1, before = inst * k, after = N - k;
+      return { x, inst, amt, m, k, before, after, afterAmt: inst * after, extra: amt - before, row, paidToM: sum(row.slice(0, k)) };
+    }).sort((p, q) => (p.m ?? 1e9) - (q.m ?? 1e9));
+    const ok = plans.filter(p => p.m !== undefined), many = plans.length > 1;
+    const nextP = plans.find(p => !p.x.s.paidOut) || plans.at(-1);
+    const stLbl = (v, due, i) => v + 1e-9 >= due && v > 0 ? { t: "✓ مسدد", col: RC.good, w: 700 } : v > 0 ? { t: "جزئي", col: RC.amber, w: 700 } : i < dm ? { t: "غير مسدد", col: RC.bad, w: 700 } : { t: "لم يحن بعد", col: RC.mut };
+    const cols = [{ h: "#", x: 822, w: 40 }, { h: "الشهر", x: 795, al: "right", w: 200 }, { h: "القسط", x: 540, w: 80 }, { h: "المدفوع", x: 435, w: 100 },
+                  { h: "مجموع الأقساط", x: 290, w: 150 }, { h: "الحالة", x: 115, w: 150 }];
+    const sections = plans.map(p => {
+      const head = `الدور ${p.x.s.order} — حركة المبالغ حتى موعد الاستلام`;
+      if (p.m === undefined) return { title: head, cols, rows: [], note: "لم يتحدد موعد استلام هذا الدور (لا يكفي رصيد الصندوق خلال المدة)." };
+      const rows = Array.from({ length: p.k }, (_, i) => {
+        const v = n(p.row[i]), last = i === p.m;
+        return { bg: last ? "#e8f5e8" : i === d.ni ? "#fff6e0" : null,
+          cells: [{ t: i + 1, col: RC.mut }, { t: RO.label(r, i), w: 700 }, fmt(p.inst), v ? { t: fmt(v), w: 700 } : { t: "—", col: RC.mut },
+                  { t: fmt(p.inst * (i + 1)), bold: last }, stLbl(v, p.inst, i)],
+          sub: last ? { t: `★ موعد الاستلام: يستلم ${c(p.amt)}${p.x.s.paidOut ? ` — استلم ✓ ${p.x.s.paidOut.date || ""}` : ""} — أي أكثر مما دفعه بـ ${c(p.extra)}`, col: RC.good } : null, subWide: 560 };
+      });
+      rows.push(p.after > 0
+        ? { bg: "#eef1fb", cells: ["", { t: "بعد الاستلام", w: 800 }, fmt(p.inst), { t: `${p.after} قسطاً`, w: 700 }, { t: fmt(p.inst * N), bold: true }, ""],
+            sub: { t: `من ${RO.label(r, p.m + 1)} إلى ${RO.label(r, N - 1)}: ${p.after} × ${fmt(p.inst)} = ${c(p.afterAmt)} — وبها يكتمل اشتراكه ${c(p.inst * N)}`, col: "#3d4f91" }, subWide: 560 }
+        : { bg: "#eef1fb", cells: ["", { t: "بعد الاستلام", w: 800 }, "", { t: "لا شيء", w: 700 }, { t: fmt(p.inst * N), bold: true }, ""],
+            sub: { t: "آخر دور — يستلم بعد اكتمال كل أقساطه", col: "#3d4f91" }, subWide: 560 });
+      return { title: many ? head : "حركة المبالغ حتى موعد الاستلام", cols, rows,
+        note: `دفع فعلاً حتى موعد الاستلام ${fmt(p.paidToM)} من ${fmt(p.before)}. الأخضر = شهر الاستلام، والأصفر = الشهر الحالي.` };
+    });
+    const beforeSum = sum(ok, p => p.before), extraSum = sum(ok, p => p.extra);
+    const canvas = await drawDoc(a, {
+      sub: "حركة المبالغ حتى موعد الاستلام",
+      stats: [["مبلغ الاشتراك الشهري", c(d.inst), null, many ? `${plans.length} أدوار: ${plans.map(p => p.x.s.order).join("، ")}` : `الدور ${plans[0].x.s.order}`],
+              ["موعد الاستلام", nextP.m !== undefined ? RO.label(r, nextP.m) : "—", nextP.x.s.paidOut ? RC.good : null, nextP.x.s.paidOut ? "استلم ✓" : nextP.x.st.t],
+              ["مبلغ الاستلام", c(d.receive), RC.good, many ? "مجموع أدواره" : `${fmt(d.inst)} × ${N} شهراً`],
+              ["يدفع حتى الاستلام", c(beforeSum), null, many ? "حسب كل دور أدناه" : `${ok[0]?.k ?? 0} أقساط`],
+              ["الزيادة على ما دفعه", c(extraSum), "#3d4f91", "يُكملها بأقساطه بعد الاستلام"],
+              ["المدفوع فعلاً حتى الآن", c(d.paid), d.arr ? RC.bad : RC.good, d.arr ? `متأخر ${fmt(d.arr)}` : "منتظم ✓"]],
+      info: [["المشترك", d.name],
+             ...ok.map(p => [`الدور ${p.x.s.order}${p.x.s.paidOut ? " — استلم ✓" : ""}`, `${p.k} أقساط قبل الاستلام (${fmt(p.before)}) ← يستلم ${fmt(p.amt)} في ${RO.label(r, p.m)} ${p.after > 0 ? ` ← ثم ${p.after} قسطاً (${fmt(p.afterAmt)})` : " — آخر دور"}`, p.x.s.paidOut ? RC.good : null])],
+      sections,
+      foot: d.arr ? "نرجو المبادرة بسداد الأقساط المتأخرة — وجزاكم الله خيراً" : "شكراً لالتزامكم — وجزاكم الله خيراً",
+    });
+    const text = `${r.settings.title}\n*حركة المشترك مع الصندوق: ${d.name}*\nالتاريخ: ${today()}\n\n` +
+      `مبلغ الاشتراك الشهري: ${c(d.inst)}\n` +
+      plans.map(p => p.m === undefined ? `*الدور ${p.x.s.order}:* لم يتحدد موعد الاستلام` :
+        `*الدور ${p.x.s.order}:*\n` +
+        `• يدفع ${p.k} أقساط حتى ${RO.label(r, p.m)}: ${p.k} × ${fmt(p.inst)} = ${c(p.before)}\n` +
+        `• *موعد الاستلام: ${RO.label(r, p.m)} — يستلم ${c(p.amt)}*${p.x.s.paidOut ? " (استلم ✓)" : ""}\n` +
+        `• أكثر مما دفعه بـ ${c(p.extra)}\n` +
+        (p.after > 0 ? `• يُكملها بعد الاستلام: ${p.after} × ${fmt(p.inst)} = ${c(p.afterAmt)} (${RO.label(r, p.m + 1)} – ${RO.label(r, N - 1)})` : "• آخر دور — لا أقساط بعد الاستلام") +
+        `\n• دفع فعلاً حتى الآن من هذا الدور: ${c(RO.paid(r, p.x.s.id))}`).join("\n\n") +
+      `\n\n${d.arr ? `*المتأخر عليه: ${c(d.arr)}* (${RO.monthsText(r, d.late)})` : "لا توجد متأخرات ✓"}\n\nأمين الصندوق: ${treasurer(a)}`;
+    return { canvas, text, fname: `حركة الصندوق ${d.name} ${today()}.png`, phone: d.phone, id };
+  }, { who: "المشترك",
+       savePhone: (ph, cur) => { const d = roPersonData(a, cur.id); if (ph && !d.shares.some(s => s.phone === ph)) { d.shares[0].phone = ph; touch(d.shares[0]); save(); } } });
+}
+
 function addAssocForm(){
   const d = new Date(), ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   const f = modal("إضافة جمعية جديدة", `
@@ -2591,6 +2737,8 @@ const RO_ACT = {
   ropayout(d){ roPayoutForm(d.id); },
   ropayreceipt(d){ roPayoutReceipt(d.id); },
   rogenreport(){ roGeneralReport(); },
+  rofundreport(){ roFundReport(); },
+  rofundperson(d){ roFundPerson(d.id); },
   ropersonreport(d){ roPersonReport(d.id); },
   rounpay(d){
     const s = member(S.a, d.id);
